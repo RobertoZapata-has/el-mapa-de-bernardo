@@ -4,6 +4,8 @@ Un juego de combinar fichas (match-3) que recorre los lugares turísticos de Men
 
 **Jugar:** https://robertozapata-has.github.io/el-mapa-de-bernardo/
 
+Se puede instalar en el celular con el botón "Instalar en el celular" de la portada (en iPhone: Compartir → Agregar a inicio). Una vez instalado, funciona sin internet.
+
 ## Capítulos
 
 | # | Lugar | Objeto |
@@ -27,6 +29,7 @@ Un juego de combinar fichas (match-3) que recorre los lugares turísticos de Men
 - La lógica del tablero (combinaciones, fichas especiales, caída) está en el bloque `<script id="logic">`, separada del dibujo.
 - El sonido se genera en el navegador con Web Audio, sin archivos: la guitarra usa síntesis de cuerda pulsada.
 - El progreso se guarda en el navegador de cada jugador.
+- `manifest.webmanifest`, `sw.js` e `icons/`: lo que hace falta para instalarlo como app y jugar sin conexión. Si cambiás imágenes o el juego, subí la versión en `VERSION` dentro de `sw.js` para que los celulares bajen lo nuevo.
 
 ## Fichas especiales
 
