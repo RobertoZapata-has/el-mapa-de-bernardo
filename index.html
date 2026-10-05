@@ -1,0 +1,1132 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b120d">
+<meta name="description" content="Un juego de combinar fichas por los lugares de Mendoza, con la historia del abuelo Bernardo.">
+<title>El mapa de Bernardo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Figtree:wght@400;600;700;800&family=Caveat:wght@500;700&display=swap">
+<style>
+/* Base: márgenes seguros del celular */
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+
+/* Layout: app de una pantalla; fondo = el lugar (se "despierta" con el progreso), arriba HUD, abajo tablero; diálogos como hoja inferior */
+:root{
+  color-scheme:dark;
+  --ink:#2a1a12; --cream:#fff6e6; --cream-dim:#e9dcc6; --malbec:#8c2346; --malbec-deep:#5e1430;
+  --gold:#f2b632; --glass:rgba(32,20,14,.62); --glass-strong:rgba(28,16,10,.86); --line:rgba(255,236,200,.28);
+  --memory:#c9965a; --ok:#5fcf86;
+  --display:"Lilita One","Arial Rounded MT Bold",system-ui,sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --hand:"Caveat","Segoe Print","Bradley Hand",cursive;
+  --paper:#f3e3c3; --paper-ink:#3b2a1c;
+}
+html,body{height:100%;overflow:hidden}
+body{background:#1b120d;color:var(--cream);font-family:var(--body);-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+button{font-family:var(--body);cursor:pointer}
+button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+#app{position:relative;height:100%;overflow:hidden}
+#bg{position:absolute;inset:0;background:#1b120d center/cover no-repeat;transition:filter .7s ease, background-image .3s;filter:saturate(.3) brightness(.78)}
+#app.memory #bg{filter:sepia(.75) saturate(.6) brightness(.85)!important}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.screen.off{visibility:hidden;pointer-events:none}
+
+/* Portada */
+#title{justify-content:flex-end;background:linear-gradient(to top,rgba(20,10,6,.92) 0%,rgba(20,10,6,.55) 32%,rgba(20,10,6,0) 58%)}
+.title-inner{padding-inline:20px;padding-block:0 34px;display:flex;flex-direction:column;gap:12px;max-width:520px;margin:0 auto;width:100%;box-sizing:border-box}
+.kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-weight:800}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(44px,13vw,64px);line-height:.95;margin:0;color:var(--cream);text-shadow:0 4px 0 var(--malbec-deep),0 8px 24px rgba(0,0,0,.5);text-wrap:balance}
+.title-inner p{margin:0;font-size:17px;color:var(--cream-dim);max-width:34ch}
+.btn{appearance:none;border:0;border-radius:16px;font-weight:800;font-size:18px;padding:15px 22px;min-height:54px;color:var(--cream);background:var(--malbec);box-shadow:0 4px 0 var(--malbec-deep),inset 0 0 0 2px rgba(242,182,50,.55)}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 var(--malbec-deep),inset 0 0 0 2px rgba(242,182,50,.55)}
+.btn.ghost{background:rgba(255,246,230,.12);box-shadow:inset 0 0 0 2px var(--line)}
+.proto{font-size:13px;color:var(--cream-dim);opacity:.8}
+
+/* Mapa de capítulos */
+#map{background:linear-gradient(rgba(27,18,13,.35),rgba(27,18,13,.78) 30%,rgba(27,18,13,.94) 60%),url(img/bg_mapa.jpg) center top/cover no-repeat,#1b120d;overflow:hidden}
+.map-head{padding-inline:16px;padding-block:18px 10px;display:flex;flex-direction:column;gap:10px;max-width:560px;margin:0 auto;width:100%;box-sizing:border-box}
+.map-head h2{font-family:var(--display);font-weight:400;font-size:34px;margin:0;text-shadow:0 3px 0 var(--malbec-deep),0 6px 16px rgba(0,0,0,.6)}
+.map-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.snd{appearance:none;border:0;background:var(--glass);color:var(--cream);border-radius:12px;font-weight:700;font-size:14px;padding:10px 12px;min-height:44px;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
+.bag{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:rgba(30,20,14,.72);border:1px solid var(--line);border-radius:14px;padding:10px 12px;min-height:44px}
+.bag-label{font-size:13px;font-weight:700;color:var(--cream-dim);margin-right:4px}
+.bag-item{display:inline-flex;width:36px;height:36px}.bag-item>*{width:100%;height:100%;object-fit:contain}
+.bag-empty{font-size:14px;color:var(--cream-dim)}
+.chapters{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-inline:16px;padding-block:6px 30px}
+.chapters-inner{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.ch{display:grid;grid-template-columns:86px 1fr;gap:12px;align-items:center;text-align:left;width:100%;border:1px solid var(--line);background:rgba(30,20,14,.78);border-radius:16px;padding:8px;color:var(--cream)}
+.ch.final .num{color:#f08a5a}
+.ch .thumb{width:86px;height:86px;border-radius:12px;background:#000 center 18%/cover no-repeat}
+.ch .meta{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ch .num{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+.ch .name{font-family:var(--display);font-size:20px;line-height:1.1}
+.ch .sub{font-size:14px;color:var(--cream-dim)}
+.ch .got{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--ok)}
+.ch.locked{opacity:.5}
+.ch.locked .thumb{filter:grayscale(1) brightness(.6)}
+.ch.current{border-color:var(--gold);box-shadow:0 0 0 2px rgba(242,182,50,.35)}
+.map-foot{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding-block:10px 4px}
+.link{appearance:none;background:none;border:0;color:var(--cream-dim);font-size:14px;text-decoration:underline;padding:8px}
+
+/* Juego */
+#game{padding-inline:12px;padding-block:10px 14px;box-sizing:border-box;gap:10px}
+.topbar{display:flex;align-items:center;gap:10px}
+.back{appearance:none;border:0;background:var(--glass);color:var(--cream);border-radius:12px;font-weight:700;font-size:15px;padding:10px 14px;min-height:44px;box-shadow:inset 0 0 0 1px var(--line)}
+.ch-title{font-family:var(--display);font-size:20px;text-shadow:0 2px 6px rgba(0,0,0,.7);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud{display:flex;gap:10px;align-items:stretch;max-width:520px;width:100%;margin:0 auto}
+.moves{background:var(--malbec);border-radius:14px;padding:6px 14px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 3px 0 var(--malbec-deep),inset 0 0 0 2px rgba(242,182,50,.5);min-width:70px}
+.moves b{font-family:var(--display);font-weight:400;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
+.moves span{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.goals{flex:1;background:var(--glass);border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);display:flex;align-items:center;justify-content:space-around;gap:6px;padding:6px 8px}
+.goal{display:flex;align-items:center;gap:6px;font-family:var(--display);font-size:22px;font-variant-numeric:tabular-nums}
+.goal img{width:38px;height:38px}
+.goal.done{color:var(--ok)}
+.spacer{flex:1;min-height:0}
+#board{position:relative;width:min(100%, 460px, calc((100vh - 210px) * 0.875));width:min(100%, 460px, calc((100dvh - 210px) * 0.875));aspect-ratio:7/8;margin:0 auto;border-radius:20px;background:rgba(30,18,12,.45);box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 0 1.5px rgba(255,236,200,.3);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);touch-action:none;overflow:hidden}
+#board canvas{display:block}
+.toast{position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);font-family:var(--display);font-size:30px;color:var(--cream);text-shadow:0 3px 0 var(--malbec-deep),0 6px 18px rgba(0,0,0,.6);pointer-events:none;white-space:nowrap;opacity:0}
+.toast.show{animation:pop 1.1s ease forwards}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-30%) scale(.8)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-70%) scale(1)}}
+
+/* Diálogo */
+#dialog{justify-content:flex-end;background:linear-gradient(to top,rgba(15,8,5,.75),rgba(15,8,5,0) 55%);z-index:5}
+.sheet{margin:0 auto 18px;width:calc(100% - 24px);max-width:540px;box-sizing:border-box;background:var(--glass-strong);border-radius:20px;box-shadow:inset 0 0 0 1.5px var(--line),0 12px 30px rgba(0,0,0,.5);padding:16px;display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;cursor:pointer}
+.sheet.narr{grid-template-columns:1fr}
+.portrait{width:84px;height:84px;border-radius:50%;background:#ddd center/cover no-repeat;box-shadow:0 0 0 3px var(--gold),0 4px 12px rgba(0,0,0,.4)}
+.memory .portrait{box-shadow:0 0 0 3px var(--memory),0 4px 12px rgba(0,0,0,.4);filter:sepia(.35)}
+.say{display:flex;flex-direction:column;gap:6px;min-width:0}
+.who{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.who b{font-family:var(--display);font-weight:400;font-size:21px;color:var(--gold)}
+.memory .who b{color:var(--memory)}
+.chip{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;border-radius:6px;padding:3px 7px;background:var(--memory);color:var(--ink)}
+.line{font-size:18px;line-height:1.45;margin:0}
+.narr .line{font-style:italic;color:var(--cream-dim);text-align:center}
+.next{font-size:13px;color:var(--cream-dim);text-align:right;grid-column:1/-1;margin-top:-4px}
+.skip{position:absolute;top:12px;right:12px;appearance:none;border:0;background:var(--glass);color:var(--cream-dim);border-radius:10px;padding:8px 12px;font-weight:700;font-size:14px;box-shadow:inset 0 0 0 1px var(--line);min-height:40px}
+
+/* Modales */
+#modal{align-items:center;justify-content:center;background:rgba(12,6,4,.62);z-index:6;padding-inline:16px}
+.card{width:100%;max-width:380px;background:linear-gradient(#3a2418,#24150e);border-radius:22px;box-shadow:inset 0 0 0 2px rgba(242,182,50,.45),0 20px 40px rgba(0,0,0,.6);padding:22px 20px 20px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.card .kicker{margin-bottom:-4px}
+.card h3{font-family:var(--display);font-weight:400;font-size:28px;margin:0;text-wrap:balance}
+.card p{margin:0;color:var(--cream-dim);font-size:16px;max-width:30ch}
+.card .icon{width:120px;height:120px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.5))}
+.card .icon>*{width:100%;height:100%;object-fit:contain}
+.card .icon.big{width:170px;height:170px}
+.card .actions{display:flex;flex-direction:column;gap:10px;width:100%;margin-top:4px}
+/* Carta */
+#letter{background:radial-gradient(ellipse at 50% 30%,rgba(60,36,22,.55),rgba(14,8,5,.92)),#1b120d;z-index:7}
+#letter-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-inline:16px;padding-block:24px 40px}
+.paper{max-width:520px;margin:0 auto;background:linear-gradient(170deg,#f7ead0,var(--paper) 55%,#e8d3ab);color:var(--paper-ink);border-radius:6px;box-shadow:0 18px 40px rgba(0,0,0,.6),inset 0 0 60px rgba(150,100,50,.25);padding:26px 24px 30px;position:relative;transform:rotate(-.6deg)}
+.photo{width:118px;margin:-6px auto 14px;background:#fffaf0;padding:8px 8px 22px;box-shadow:0 6px 14px rgba(0,0,0,.35);transform:rotate(3deg);position:relative}
+.photo img{display:block;width:100%;aspect-ratio:1;object-fit:cover;filter:sepia(.45) saturate(.85)}
+.photo::after{content:"";position:absolute;top:-10px;left:50%;width:56px;height:20px;margin-left:-28px;background:rgba(240,225,180,.75);transform:rotate(-4deg)}
+.to{font-family:var(--body);font-size:12px;letter-spacing:.14em;text-transform:uppercase;text-align:center;color:#8a6232;margin:0 0 12px;font-weight:700}
+#letter-body p{font-family:var(--hand);font-size:24px;line-height:1.25;margin:0 0 14px;opacity:0;animation:ink .9s ease forwards}
+#letter-body .salute{font-size:28px;font-weight:700}
+#letter-body .motto{font-size:27px;font-weight:700;color:#7a1f3a;text-align:center;margin-block:20px}
+#letter-body .sign{text-align:right;font-size:26px}
+@keyframes ink{from{opacity:0;transform:translateY(6px);filter:blur(2px)}to{opacity:1;transform:none;filter:none}}
+#btn-letter{display:block;margin:24px auto 0;opacity:0;animation:ink .8s ease forwards}
+@media (prefers-reduced-motion:reduce){#bg{transition:none}.toast.show{animation-duration:.01s}#letter-body p,#btn-letter{animation:none;opacity:1}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bg"></div>
+
+  <section id="title" class="screen">
+    <div class="title-inner">
+      <span class="kicker">Una búsqueda del tesoro por Mendoza</span>
+      <h1>El mapa de Bernardo</h1>
+      <p>Dos nietos, dos mitades de un mapa y un secreto que sus abuelos escondieron hace cincuenta años.</p>
+      <button class="btn" id="btn-play" type="button">Jugar</button>
+      <span class="proto">Prototipo · las fichas son provisorias</span>
+    </div>
+  </section>
+
+  <section id="map" class="screen off" aria-label="Capítulos">
+    <div class="map-head">
+      <div class="map-top"><h2>Mendoza</h2><button class="snd" type="button" aria-pressed="true">Sonido: sí</button></div>
+      <div class="bag" id="bag"></div>
+    </div>
+    <div class="chapters"><div class="chapters-inner" id="chapters"></div>
+      <div class="map-foot">
+        <button class="link" id="btn-unlock" type="button">Desbloquear todo (modo prueba)</button>
+        <button class="link" id="btn-reset" type="button">Borrar progreso</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="game" class="screen off" aria-label="Partida">
+    <div class="topbar">
+      <button class="back" id="btn-back" type="button">← Mapa</button>
+      <div class="ch-title" id="g-title"></div>
+      <button class="snd" type="button" aria-pressed="true">Sonido: sí</button>
+    </div>
+    <div class="hud">
+      <div class="moves"><b id="g-moves">0</b><span>Jugadas</span></div>
+      <div class="goals" id="g-goals"></div>
+    </div>
+    <div class="spacer"></div>
+    <div id="board"><div class="toast" id="toast"></div></div>
+  </section>
+
+  <section id="dialog" class="screen off" aria-live="polite">
+    <button class="skip" id="btn-skip" type="button">Saltar</button>
+    <div class="sheet" id="sheet" role="button" tabindex="0">
+      <div class="portrait" id="d-portrait"></div>
+      <div class="say">
+        <div class="who"><b id="d-name"></b><span class="chip" id="d-chip">Recuerdo</span></div>
+        <p class="line" id="d-text"></p>
+      </div>
+      <div class="next">Tocá para seguir ▸</div>
+    </div>
+  </section>
+
+  <section id="letter" class="screen off" aria-label="La carta de Bernardo">
+    <div id="letter-scroll">
+      <div class="paper">
+        <div class="photo"><img src="img/bernardo50.jpg" alt="Bernardo"></div>
+        <p class="to">Para mi nieto · Para tu cumpleaños número 10</p>
+        <div id="letter-body"></div>
+        <button class="btn" id="btn-letter" type="button">Guardar la carta</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="modal" class="screen off"><div class="card" id="card"></div></section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
+<script id="logic">
+/* ===== Lógica del tablero (pura, sin dibujo) ===== */
+const COLS = 7, ROWS = 8;
+const K = (r, c) => r * COLS + c;
+const RC = (k) => [Math.floor(k / COLS), k % COLS];
+
+function findRuns(g) {
+  const out = [];
+  for (let r = 0; r < ROWS; r++) {
+    let c = 0;
+    while (c < COLS) {
+      const p = g[r][c];
+      if (!p || p.t < 0) { c++; continue; }
+      let e = c + 1;
+      while (e < COLS && g[r][e] && g[r][e].t === p.t) e++;
+      if (e - c >= 3) { const cells = []; for (let i = c; i < e; i++) cells.push([r, i]); out.push({ dir: 'h', cells }); }
+      c = e;
+    }
+  }
+  for (let c = 0; c < COLS; c++) {
+    let r = 0;
+    while (r < ROWS) {
+      const p = g[r][c];
+      if (!p || p.t < 0) { r++; continue; }
+      let e = r + 1;
+      while (e < ROWS && g[e][c] && g[e][c].t === p.t) e++;
+      if (e - r >= 3) { const cells = []; for (let i = r; i < e; i++) cells.push([i, c]); out.push({ dir: 'v', cells }); }
+      r = e;
+    }
+  }
+  return out;
+}
+
+function findGroups(g) {
+  const runs = findRuns(g);
+  const parent = runs.map((_, i) => i);
+  const find = (i) => parent[i] === i ? i : (parent[i] = find(parent[i]));
+  const owner = new Map();
+  runs.forEach((run, i) => run.cells.forEach(([r, c]) => {
+    const k = K(r, c);
+    if (owner.has(k)) parent[find(i)] = find(owner.get(k)); else owner.set(k, i);
+  }));
+  const groups = new Map();
+  runs.forEach((run, i) => {
+    const root = find(i);
+    if (!groups.has(root)) groups.set(root, { runs: [], cells: new Set() });
+    const G = groups.get(root);
+    G.runs.push(run);
+    run.cells.forEach(([r, c]) => G.cells.add(K(r, c)));
+  });
+  return [...groups.values()];
+}
+
+function effectCells(p, r, c, g) {
+  const out = [];
+  if (p.s === 'h' || p.s === 'x') for (let i = 0; i < COLS; i++) out.push(K(r, i));
+  if (p.s === 'v' || p.s === 'x') for (let i = 0; i < ROWS; i++) out.push(K(i, c));
+  if (p.s === 'b') {
+    const count = {};
+    for (let rr = 0; rr < ROWS; rr++) for (let cc = 0; cc < COLS; cc++) { const q = g[rr][cc]; if (q && q.t >= 0) count[q.t] = (count[q.t] || 0) + 1; }
+    const best = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+    for (let rr = 0; rr < ROWS; rr++) for (let cc = 0; cc < COLS; cc++) { const q = g[rr][cc]; if (q && String(q.t) === best) out.push(K(rr, cc)); }
+  }
+  return out;
+}
+
+// Agrega a "clear" las celdas de los especiales que explotan, en cadena
+function expandSpecials(g, clear, keep) {
+  const triggered = [];
+  const done = new Set();
+  const queue = [...clear];
+  while (queue.length) {
+    const k = queue.shift();
+    if (done.has(k)) continue;
+    done.add(k);
+    if (keep && keep.has(k)) continue;
+    const [r, c] = RC(k);
+    const p = g[r][c];
+    if (p && p.s) {
+      triggered.push({ r, c, s: p.s });
+      for (const e of effectCells(p, r, c, g)) if (!clear.has(e)) { clear.add(e); queue.push(e); }
+    }
+  }
+  return triggered;
+}
+
+function resolveStep(g, swapCells) {
+  const groups = findGroups(g);
+  if (!groups.length) return null;
+  const clear = new Set();
+  const created = [];
+  for (const G of groups) {
+    const longest = G.runs.reduce((a, b) => (b.cells.length > a.cells.length ? b : a));
+    const hasH = G.runs.some((r) => r.dir === 'h'), hasV = G.runs.some((r) => r.dir === 'v');
+    let special = null;
+    if (longest.cells.length >= 5) special = 'b';
+    else if (hasH && hasV) special = 'x';
+    else if (longest.cells.length === 4) special = longest.dir === 'h' ? 'v' : 'h';
+    G.cells.forEach((k) => clear.add(k));
+    if (special) {
+      let pos = swapCells && swapCells.find(([r, c]) => G.cells.has(K(r, c)));
+      if (!pos) pos = longest.cells[Math.floor(longest.cells.length / 2)];
+      const base = g[pos[0]][pos[1]];
+      created.push({ r: pos[0], c: pos[1], piece: { t: special === 'b' ? -1 : base.t, s: special }, was: base });
+    }
+  }
+  const keep = new Set(created.map((o) => K(o.r, o.c)));
+  // si la ficha que se convierte ya era especial, igual explota
+  created.forEach((o) => { if (o.was.s) { keep.delete(K(o.r, o.c)); } });
+  const triggered = expandSpecials(g, clear, keep);
+  created.forEach((o) => clear.delete(K(o.r, o.c)));
+  return { clear: [...clear], created, triggered };
+}
+
+function bombSwap(g, a, b) {
+  const pa = g[a[0]][a[1]], pb = g[b[0]][b[1]];
+  const clear = new Set();
+  if (pa.s === 'b' && pb.s === 'b') {
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) clear.add(K(r, c));
+  } else {
+    const bomb = pa.s === 'b' ? a : b;
+    const other = pa.s === 'b' ? pb : pa;
+    clear.add(K(bomb[0], bomb[1]));
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (g[r][c] && g[r][c].t === other.t) clear.add(K(r, c));
+  }
+  const keep = new Set([K(a[0], a[1]), K(b[0], b[1])].filter((k) => { const [r, c] = RC(k); return g[r][c].s === 'b'; }));
+  const triggered = expandSpecials(g, clear, keep);
+  return { clear: [...clear], created: [], triggered };
+}
+
+function applyClear(g, res) {
+  const got = {};
+  for (const k of res.clear) {
+    const [r, c] = RC(k);
+    const p = g[r][c];
+    if (p && p.t >= 0) got[p.t] = (got[p.t] || 0) + 1;
+    g[r][c] = null;
+  }
+  for (const o of res.created) g[o.r][o.c] = o.piece;
+  return got;
+}
+
+function gravity(g, rand, types) {
+  const moves = [], spawns = [];
+  for (let c = 0; c < COLS; c++) {
+    let w = ROWS - 1;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (g[r][c]) {
+        if (r !== w) { g[w][c] = g[r][c]; g[r][c] = null; moves.push({ from: [r, c], to: [w, c] }); }
+        w--;
+      }
+    }
+    const missing = w + 1;
+    for (let r = w; r >= 0; r--) {
+      g[r][c] = { t: Math.floor(rand() * types), s: null };
+      spawns.push({ r, c, fromRow: r - missing });
+    }
+  }
+  return { moves, spawns };
+}
+
+function swapCells(g, a, b) { const t = g[a[0]][a[1]]; g[a[0]][a[1]] = g[b[0]][b[1]]; g[b[0]][b[1]] = t; }
+
+function findMove(g) {
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    for (const [dr, dc] of [[0, 1], [1, 0]]) {
+      const r2 = r + dr, c2 = c + dc;
+      if (r2 >= ROWS || c2 >= COLS) continue;
+      if (g[r][c].s === 'b' || g[r2][c2].s === 'b') return [[r, c], [r2, c2]];
+      swapCells(g, [r, c], [r2, c2]);
+      const ok = findRuns(g).length > 0;
+      swapCells(g, [r, c], [r2, c2]);
+      if (ok) return [[r, c], [r2, c2]];
+    }
+  }
+  return null;
+}
+
+function newGrid(rand, types) {
+  for (let tries = 0; tries < 200; tries++) {
+    const g = [];
+    for (let r = 0; r < ROWS; r++) {
+      g.push([]);
+      for (let c = 0; c < COLS; c++) {
+        let t, guard = 0;
+        do {
+          t = Math.floor(rand() * types); guard++;
+        } while (guard < 30 && ((c >= 2 && g[r][c - 1].t === t && g[r][c - 2].t === t) || (r >= 2 && g[r - 1][c].t === t && g[r - 2][c].t === t)));
+        g[r].push({ t, s: null });
+      }
+    }
+    if (!findRuns(g).length && findMove(g)) return g;
+  }
+  throw new Error('no grid');
+}
+
+function reshuffle(g, rand) {
+  const pieces = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) pieces.push(g[r][c]);
+  for (let tries = 0; tries < 300; tries++) {
+    for (let i = pieces.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pieces[i], pieces[j]] = [pieces[j], pieces[i]]; }
+    let i = 0;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) g[r][c] = pieces[i++];
+    if (!findRuns(g).length && findMove(g)) return true;
+  }
+  return false;
+}
+
+if (typeof module !== 'undefined') module.exports = { COLS, ROWS, K, RC, findRuns, findGroups, resolveStep, bombSwap, applyClear, gravity, swapCells, findMove, newGrid, reshuffle };
+</script>
+
+<script>
+/* ===== Fichas ===== */
+const SETS = {
+  finca: [
+    { name: 'Uva', img: 'img/f_uva.png' }, { name: 'Hoja', img: 'img/f_hoja.png' }, { name: 'Gota', img: 'img/f_gota.png' },
+    { name: 'Damasco', img: 'img/f_damasco.png' }, { name: 'Sol', img: 'img/f_sol.png' }, { name: 'Canasto', img: 'img/f_canasto.png' },
+  ],
+  tren: [
+    { name: 'Reloj', img: 'img/t_reloj.png' }, { name: 'Farol', img: 'img/t_farol.png' }, { name: 'Valija', img: 'img/t_valija.png' },
+    { name: 'Copo de nieve', img: 'img/t_copo.png' }, { name: 'Flor', img: 'img/t_flor.png' }, { name: 'Rueda', img: 'img/t_rueda.png' },
+  ],
+};
+const IMG = {};
+function loadImg(src) {
+  return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; IMG[src] = im; });
+}
+const imagesReady = Promise.all([...Object.values(SETS).flat().map((p) => p.img), 'img/p_llave.png'].map(loadImg));
+
+function drawPiece(ctx, set, t, s) {
+  const S = 128;
+  ctx.clearRect(0, 0, S, S);
+  if (s === 'b') {
+    const gr = ctx.createRadialGradient(64, 64, 6, 64, 64, 62);
+    gr.addColorStop(0, 'rgba(255,236,170,.95)'); gr.addColorStop(.55, 'rgba(242,182,50,.55)'); gr.addColorStop(1, 'rgba(242,182,50,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(64, 64, 62, 0, Math.PI * 2); ctx.fill();
+    const k = IMG['img/p_llave.png'];
+    if (k) ctx.drawImage(k, 8, 8, 112, 112);
+    return;
+  }
+  const im = IMG[SETS[set][t].img];
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 4;
+  if (im) ctx.drawImage(im, 6, 4, 116, 116);
+  ctx.restore();
+  if (s === 'h' || s === 'v' || s === 'x') {
+    ctx.save(); ctx.translate(64, 64);
+    const bars = (rot) => {
+      ctx.save(); ctx.rotate(rot);
+      ctx.shadowColor = 'rgba(255,240,200,.9)'; ctx.shadowBlur = 8;
+      for (const y of [-18, 0, 18]) { ctx.fillStyle = 'rgba(255,255,255,.82)'; ctx.fillRect(-50, y - 3.5, 100, 7); }
+      ctx.restore();
+    };
+    if (s === 'h' || s === 'x') bars(0);
+    if (s === 'v' || s === 'x') bars(Math.PI / 2);
+    if (s === 'x') { ctx.strokeStyle = '#f2b632'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 56, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+  }
+}
+
+/* ===== Objetos de la mochila ===== */
+const OBJ_SVG = {
+  gorra: `<svg viewBox="0 0 64 64"><ellipse cx="32" cy="40" rx="26" ry="9" fill="#1f2a24"/><path d="M10 34c0-12 10-20 22-20s22 8 22 20c-6 4-38 4-44 0z" fill="#56715f"/><path d="M10 34c6 4 38 4 44 0v4c-6 4-38 4-44 0z" fill="#2c2420"/><circle cx="32" cy="26" r="6" fill="#e6b84a" stroke="#8a6a1f" stroke-width="2"/><path d="M18 46c6 4 22 4 28 0l4 4c-10 6-26 6-36 0z" fill="#111"/></svg>`,
+  cuaderno: `<svg viewBox="0 0 64 64"><rect x="12" y="8" width="40" height="50" rx="4" fill="#7a4a2a"/><rect x="12" y="8" width="7" height="50" rx="3" fill="#5a331c"/><rect x="24" y="16" width="22" height="12" rx="2" fill="#f1dfbf"/><path d="M26 21h18M26 25h12" stroke="#7a4a2a" stroke-width="2"/><rect x="48" y="28" width="8" height="10" rx="2" fill="#c49a5a"/></svg>`,
+  mapa: `<svg viewBox="0 0 64 64"><path d="M6 14l16-6 20 6 16-6v42l-16 6-20-6-16 6z" fill="#efd9ae" stroke="#9a7444" stroke-width="2"/><path d="M22 8v42M42 14v42" stroke="#c7a46e" stroke-width="2"/><path d="M12 42c8-2 6-12 16-12s10 8 18-2" fill="none" stroke="#8c2346" stroke-width="2.5" stroke-dasharray="4 3"/><path d="M44 22l6 6M50 22l-6 6" stroke="#8c2346" stroke-width="3"/></svg>`,
+  boleto: `<svg viewBox="0 0 64 64"><path d="M6 18h52v8a6 6 0 0 0 0 12v8H6v-8a6 6 0 0 0 0-12z" fill="#e9c98f" stroke="#8a6232" stroke-width="2"/><path d="M42 20v24" stroke="#8a6232" stroke-width="2" stroke-dasharray="3 3"/><rect x="12" y="25" width="24" height="5" rx="2" fill="#8c2346"/><rect x="12" y="34" width="18" height="3" rx="1.5" fill="#8a6232"/><circle cx="50" cy="32" r="4" fill="#8c2346"/></svg>`,
+};
+const objIcon = (icon) => OBJ_SVG[icon] || `<img src="img/${icon}.png" alt="">`;
+
+/* ===== Sonido (sintetizado, sin archivos) ===== */
+const Sound = (() => {
+  let ctx = null, master, sfx, mus, muted = false, musicMode = null, timer = null, nextT = 0, step = 0;
+  try { muted = localStorage.getItem('mapa-bernardo-mute') === '1'; } catch (e) {}
+  const ks = {};
+  const mf = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  function unlock() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      ctx = new AC();
+      master = ctx.createGain(); master.gain.value = muted ? 0 : 1; master.connect(ctx.destination);
+      sfx = ctx.createGain(); sfx.gain.value = 0.9; sfx.connect(master);
+      mus = ctx.createGain(); mus.gain.value = 0.22; mus.connect(master);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+  }
+  // cuerda pulsada (Karplus-Strong): suena a guitarra
+  function ksBuf(m) {
+    if (ks[m]) return ks[m];
+    const sr = ctx.sampleRate, len = Math.floor(sr * 2.2), N = Math.max(2, Math.round(sr / mf(m)));
+    const b = ctx.createBuffer(1, len, sr), d = b.getChannelData(0);
+    for (let i = 0; i < N; i++) d[i] = Math.random() * 2 - 1;
+    for (let i = N; i < len; i++) d[i] = 0.5 * (d[i - N] + d[i - N + 1]) * 0.9965;
+    let lp = 0;
+    for (let i = 0; i < len; i++) { lp += (d[i] - lp) * 0.5; d[i] = lp * 0.6; }
+    return (ks[m] = b);
+  }
+  function pluck(m, t, vol, dest) {
+    const s = ctx.createBufferSource(); s.buffer = ksBuf(m);
+    const g = ctx.createGain(); g.gain.value = vol;
+    s.connect(g); g.connect(dest || sfx); s.start(t);
+  }
+  function tone(f, t, dur, type, vol, f2) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(sfx); o.start(t); o.stop(t + dur + 0.02);
+  }
+  function noise(t, dur, f1, f2, vol) {
+    const len = Math.floor(ctx.sampleRate * dur), b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const s = ctx.createBufferSource(); s.buffer = b;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(f1, t); bp.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(bp); bp.connect(g); g.connect(sfx); s.start(t);
+  }
+  const ok = () => ctx && !muted;
+  const PENTA = [72, 74, 76, 79, 81, 84, 86, 88, 91];
+  const api = {
+    unlock,
+    swap() { if (!ok()) return; noise(ctx.currentTime, 0.13, 700, 2600, 0.22); },
+    bad() { if (!ok()) return; const t = ctx.currentTime; tone(240, t, 0.09, 'square', 0.05); tone(190, t + 0.1, 0.12, 'square', 0.05); },
+    pop(combo) { if (!ok()) return; const t = ctx.currentTime, m = PENTA[Math.min(PENTA.length - 1, combo - 1)]; pluck(m, t, 0.9); tone(mf(m + 12), t, 0.12, 'sine', 0.06); },
+    special() { if (!ok()) return; const t = ctx.currentTime; [76, 79, 84].forEach((m, i) => pluck(m, t + i * 0.06, 0.7)); },
+    zap() { if (!ok()) return; const t = ctx.currentTime; tone(1400, t, 0.28, 'sawtooth', 0.05, 180); noise(t, 0.25, 3000, 400, 0.12); },
+    bomb() { if (!ok()) return; const t = ctx.currentTime; for (let i = 0; i < 9; i++) tone(mf(PENTA[i % PENTA.length] + 12), t + i * 0.035, 0.35, 'sine', 0.07); },
+    win() { if (!ok()) return; const t = ctx.currentTime; [57, 64, 69, 72, 76, 81].forEach((m, i) => pluck(m, t + i * 0.09, 0.9)); tone(mf(93), t + 0.6, 1.2, 'sine', 0.06); },
+    lose() { if (!ok()) return; const t = ctx.currentTime; tone(392, t, 0.7, 'triangle', 0.09, 180); },
+    chime() { if (!ok()) return; const t = ctx.currentTime; [[88, 0], [91, 0.12], [96, 0.24]].forEach(([m, d]) => { tone(mf(m), t + d, 1.4, 'sine', 0.08); tone(mf(m) * 2.76, t + d, 0.5, 'sine', 0.02); }); },
+    tick() { if (!ok()) return; tone(1100, ctx.currentTime, 0.04, 'sine', 0.04); },
+    // música: arpegio de guitarra en 6/8, estilo tonada cuyana
+    music(mode) {
+      musicMode = mode;
+      if (!ctx) return;
+      if (timer) clearInterval(timer);
+      timer = null;
+      if (!mode) return;
+      nextT = ctx.currentTime + 0.15; step = 0;
+      timer = setInterval(schedule, 40);
+    },
+    toggle() {
+      muted = !muted;
+      try { localStorage.setItem('mapa-bernardo-mute', muted ? '1' : '0'); } catch (e) {}
+      if (ctx) master.gain.setTargetAtTime(muted ? 0 : 1, ctx.currentTime, 0.05);
+      return muted;
+    },
+    get muted() { return muted; },
+    suspend(v) { if (ctx) (v ? ctx.suspend() : ctx.resume()); },
+  };
+  const CH = {
+    Am: [45, 52, 57, 60, 64], Dm: [50, 57, 62, 65, 69], G: [43, 50, 55, 59, 62], C: [48, 55, 60, 64, 67],
+    F: [41, 48, 53, 57, 60], E: [40, 47, 52, 56, 59],
+  };
+  const SONGS = {
+    game: { prog: ['Am', 'Dm', 'G', 'C', 'F', 'Dm', 'E', 'Am'], eighth: 0.27, pat: [0, 2, 3, 4, 3, 2], vol: 0.55 },
+    letter: { prog: ['C', 'Am', 'F', 'G', 'C', 'Am', 'Dm', 'G'], eighth: 0.42, pat: [0, 2, 4, null, 3, null], vol: 0.45 },
+  };
+  function schedule() {
+    if (!ctx || !musicMode) return;
+    const song = SONGS[musicMode];
+    while (nextT < ctx.currentTime + 0.2) {
+      const bar = Math.floor(step / 6) % song.prog.length, i = step % 6;
+      const idx = song.pat[i];
+      if (idx !== null && !muted) pluck(CH[song.prog[bar]][idx], nextT, i === 0 ? song.vol * 1.15 : song.vol * (0.75 + Math.random() * 0.15), mus);
+      nextT += song.eighth * (i === 0 ? 1.04 : 1);
+      step++;
+    }
+  }
+  return api;
+})();
+document.addEventListener('visibilitychange', () => Sound.suspend(document.hidden));
+function syncSoundButtons() { document.querySelectorAll('.snd').forEach((b) => { b.setAttribute('aria-pressed', String(!Sound.muted)); b.textContent = Sound.muted ? 'Sonido: no' : 'Sonido: sí'; }); }
+
+/* ===== Capítulos ===== */
+const P = {
+  bernardo_policia: { n: 'Bernardo', img: 'img/bernardo_policia.jpg' },
+  bernardo_obrero: { n: 'Bernardo', img: 'img/bernardo_obrero.jpg' },
+  bernardo50: { n: 'Bernardo', img: 'img/bernardo50.jpg' },
+  roberto_camionero: { n: 'Roberto', img: 'img/roberto_camionero.jpg' },
+  roberto_viajero: { n: 'Roberto', img: 'img/roberto_viajero.jpg' },
+  nieto: { n: 'El nieto', img: 'img/nieto.jpg' },
+  nieta: { n: 'La nieta', img: 'img/nieta.jpg' },
+};
+const N = (text) => ({ text });
+const S = (who, text, memory) => ({ who, text, memory: !!memory });
+
+const CHAPTERS = [
+  { id: 'prologo', num: 'Prólogo', name: 'Córdoba', sub: 'El que dejó todo por amor', bg: 'img/bg_prologo.jpg', memory: true, set: 'finca',
+    moves: 18, types: 5, goals: [[2, 12], [1, 12]],
+    obj: { icon: 'gorra', name: 'La gorra de oficial', desc: 'Bernardo dejó el ascenso, pero se llevó la gorra de recuerdo.' },
+    intro: [N('Córdoba, fines de los años 60.'), S('bernardo_policia', 'Me ofrecen el ascenso. Uniforme nuevo, sueldo fijo. Todo lo que siempre quise.', 1), S('bernardo_policia', 'Pero ella se va a Mendoza mañana, en el primer colectivo.', 1), N('Deslizá una ficha para juntar tres iguales. Con cuatro o más armás fichas especiales. Con cinco aparece una llave.')],
+    outro: [S('bernardo_policia', 'Si me quedo, lo tengo todo. Si me voy, la tengo a ella.', 1), N('A la mañana siguiente, Bernardo se subió a ese colectivo.')] },
+  { id: 'finca', num: 'Capítulo 1', name: 'La finca de Bernardo', sub: 'Maipú', bg: 'img/bg_finca.jpg', set: 'finca',
+    moves: 19, types: 5, goals: [[0, 16], [2, 14]],
+    obj: { icon: 'cuaderno', name: 'El cuaderno de Bernardo', desc: 'Acertijos, dibujos y una foto de dos muchachos en la viña.' },
+    intro: [N('Maipú, hoy.'), S('nieto', 'La finca del abuelo sigue igual. El parral, los álamos, la acequia...'), S('nieto', 'En el galpón había una caja con su nombre. Adentro: un cuaderno y medio mapa.'), S('nieto', 'Y una foto de dos muchachos en la viña. Uno es el abuelo. ¿Y el otro?')],
+    outro: [S('nieto', 'La primera página dice: "Lo que el agua guarda, la familia lo encuentra".'), S('nieto', 'Abajo hay un nombre escrito con lápiz: Roberto.')] },
+  { id: 'ruinas', num: 'Capítulo 2', name: 'Ruinas de San Francisco', sub: 'Área Fundacional', bg: 'img/bg_ruinas.jpg', set: 'finca',
+    moves: 21, types: 5, goals: [[3, 18], [4, 18]],
+    obj: { icon: 'mapa', name: 'El mapa completo', desc: 'Las dos mitades encajan: marcas por toda Mendoza.' },
+    intro: [N('Ciudad de Mendoza, junto a las ruinas.'), S('nieta', '¿Vos también tenés medio mapa? El mío era de mi abuelo Roberto.'), S('nieto', 'Entonces nuestros abuelos se conocían...'), S('nieta', 'Si las dos mitades encajan, sabemos adónde ir.')],
+    outro: [S('nieta', 'Encajan perfecto. Mirá todas estas marcas.'), S('nieto', 'Y en el centro dice: "La Llave del Agua".')] },
+  { id: 'cerro', num: 'Capítulo 3', name: 'Cerro de la Gloria', sub: 'Parque General San Martín', bg: 'img/bg_cerro.jpg', set: 'finca',
+    moves: 24, types: 6, goals: [[1, 18], [5, 16]],
+    obj: { icon: 'frag1', name: 'Primer fragmento', desc: 'La cabeza de la Llave, con su piedra turquesa en forma de gota.' },
+    intro: [S('nieto', 'La primera marca está en el Cerro de la Gloria.'), S('nieta', 'El cuaderno dice: "Contá los caballos y mirá hacia la cordillera".')],
+    outro: [S('nieta', '¡Acá estaba! Escondida al pie del monumento.'), S('nieto', 'El primer pedazo de la Llave.')] },
+  { id: 'villavicencio', num: 'Capítulo 4', name: 'Villavicencio', sub: 'El hotel y los caracoles', bg: 'img/bg_villavicencio.jpg', set: 'finca',
+    moves: 24, types: 6, goals: [[5, 16], [0, 16], [3, 12]],
+    obj: { icon: 'frag2', name: 'Segundo fragmento', desc: 'Estaba debajo del puentecito del jardín.' },
+    intro: [S('nieta', 'Alguien estuvo acá antes que nosotros. Hay pisadas frescas.'), S('nieto', 'No somos los únicos que buscan la Llave.')],
+    outro: [S('nieto', 'Lo encontramos primero. Por poco.'), S('nieta', 'Tenemos que apurarnos.')] },
+  { id: 'potrerillos', num: 'Capítulo 5', name: 'Potrerillos', sub: 'El pueblo bajo el agua', bg: 'img/bg_potrerillos.jpg', set: 'finca',
+    moves: 27, types: 6, goals: [[2, 26], [4, 16]],
+    obj: { icon: 'frag3', name: 'Tercer fragmento', desc: 'Roberto lo había dejado en el pueblo viejo, antes del dique.' },
+    intro: [S('nieta', 'Mi abuelo manejaba camiones de YPF por esta ruta. Siempre paraba en el pueblo viejo.'), S('roberto_camionero', 'Nadie le pregunta nada a un camionero, Bernardo. Dámelo a mí, que yo lo escondo en el camino.', 1), S('nieto', 'Pero el pueblo viejo quedó bajo el agua cuando hicieron el dique...')],
+    outro: [N('Con el agua baja aparecen las piedras del pueblo viejo.'), S('nieta', 'Ahí está. Mi abuelo sabía elegir escondites.')] },
+  { id: 'puente', num: 'Capítulo 6', name: 'El Trasandino', sub: 'El viaje de Roberto', bg: 'img/bg_puente.jpg', memory: true, set: 'tren',
+    moves: 26, types: 6, goals: [[0, 20], [2, 20], [1, 12]],
+    obj: { icon: 'boleto', name: 'El boleto del Trasandino', desc: 'Roberto lo guardó toda la vida. Atrás tiene algo escrito.' },
+    intro: [N('Años 70. Estación de Puente del Inca.'), S('roberto_viajero', '¡Nunca salí de Mendoza y ahora me voy a Chile en tren!', 1), S('bernardo_obrero', 'Llevá la caja hasta arriba, Roberto. Allá no la va a buscar nadie.', 1), S('roberto_viajero', '¿Y vos no venís?', 1), S('bernardo_obrero', 'Yo me quedo. Tengo tres chicos que criar.', 1)],
+    outro: [S('roberto_viajero', 'Fue mi único viaje a Chile. Y lo hice por un amigo.', 1), N('Roberto guardó el boleto toda su vida.')] },
+  { id: 'cristo', num: 'Capítulo 7', name: 'Cristo Redentor', sub: 'La frontera', bg: 'img/bg_cristo.jpg', set: 'tren',
+    moves: 26, types: 6, goals: [[3, 22], [5, 22]],
+    obj: { icon: 'frag4', name: 'Cuarto fragmento', desc: 'Lo que Roberto subió hasta la cordillera.' },
+    intro: [S('nieta', 'Atrás del boleto dice: "A los pies del Cristo, mirando a los dos países".'), S('nieto', 'Qué frío hace acá arriba. Imaginate subir en esa época.')],
+    outro: [S('nieta', 'Mi abuelo subió hasta acá solo para cuidar el secreto del tuyo.'), S('nieto', 'Y el mío nunca se lo olvidó.')] },
+  { id: 'uco', num: 'Capítulo 8', name: 'Valle de Uco', sub: 'Las cosechas', bg: 'img/bg_uco.jpg', set: 'finca',
+    moves: 28, types: 6, goals: [[0, 28], [1, 18]],
+    obj: { icon: 'frag5', name: 'Quinto fragmento', desc: 'Entre las raíces de la cepa más vieja.' },
+    intro: [S('nieto', 'El cuaderno dice que el abuelo trabajó acá muchas cosechas.'), S('bernardo_obrero', 'No tengo plata, pero tengo las manos. Con eso alcanza para que mis hijos coman.', 1)],
+    outro: [S('nieto', 'Cada racimo de acá era un plato de comida en su mesa.'), S('nieta', 'Y mirá: escondió el fragmento entre sus viñas.')] },
+  { id: 'atuel', num: 'Capítulo 9', name: 'Cañón del Atuel', sub: 'San Rafael', bg: 'img/bg_atuel.jpg', set: 'finca',
+    moves: 28, types: 6, goals: [[3, 22], [4, 22], [5, 16]],
+    obj: { icon: 'frag6', name: 'Sexto fragmento', desc: 'El coleccionista estuvo cerca, pero no tenía el cuaderno.' },
+    intro: [S('nieta', 'El coleccionista llegó antes. Hay marcas suyas por todo el cañón.'), S('nieto', 'Pero él no tiene el cuaderno. Nosotros sí.')],
+    outro: [S('nieto', 'Sexto fragmento.'), S('nieta', 'Ya están todos. Y la última marca del mapa está en la Payunia.')] },
+  { id: 'payunia', num: 'Final', name: 'La Payunia', sub: 'Donde el fuego se hizo piedra', bg: 'img/bg_payunia.jpg', set: 'finca', final: true,
+    moves: 30, types: 6, goals: [[0, 24], [3, 24], [5, 20]],
+    obj: { icon: 'llave', name: 'La Llave del Agua', desc: 'Los seis fragmentos encajan. La Llave está entera otra vez.' },
+    intro: [N('Malargüe. Atardece en la Payunia.'), S('nieta', 'La última marca del mapa. Acá no hay más que volcanes.'), S('nieto', 'El cuaderno dice: "Donde el fuego se hizo piedra, la Llave abre lo que guardé".'), S('nieta', 'Esta vez llegamos antes que el coleccionista.')],
+    outro: [N('Las seis piezas encajan una por una. La Llave abre una cajita de lata escondida entre las piedras.'), S('nieta', 'No hay oro...'), S('nieto', 'Hay un sobre. Tiene mi nombre. Y dice: "Para tu cumpleaños número 10".')],
+    epilogue: [S('nieto', 'Tuvo la Llave en la mano y eligió no venderla.'), S('nieta', 'Igual que cuando dejó Córdoba. Eligió a los suyos.'), S('nieto', 'Tu abuelo y el mío, cuidando el mismo secreto durante cincuenta años.'), S('nieta', 'Para que un día nos encontráramos nosotros.'), N('La Llave del Agua quedó en un museo de Mendoza, para que la vea todo el que venga. La carta volvió a la caja de Bernardo, en la finca de Maipú.')] },
+];
+
+const LETTER = [
+  'Querido nieto:',
+  'Si estás leyendo esto, llegaste al final del mapa. Y Roberto cumplió su palabra, como siempre.',
+  'Te cuento un secreto: la Llave la encontré yo, hace muchos años, limpiando la acequia de la finca. Un señor de traje me ofreció por ella más plata de la que iba a ganar en toda mi vida.',
+  'Esa noche miré a tu papá y a tus tíos dormidos, con las zapatillas gastadas en la puerta. Y aun así le dije que no.',
+  'Hay cosas que no se venden. La Llave es de Mendoza, de los que regaron esta tierra antes que nosotros. Por eso la partí en pedazos y la escondí en los lugares que más quise, para que algún día alguien de mi sangre los recorriera y los conociera como yo.',
+  'Yo ya lo había aprendido cuando dejé Córdoba: lo que más vale no entra en un cofre.',
+  'Pensaba darte esta carta yo mismo, el día que cumplieras 10 años, con una torta y esta caja vieja. Si no llegué a hacerlo, no estés triste. Llegaste vos, y eso era lo que importaba.',
+  'Lo que el agua guarda, la familia lo encuentra.',
+];
+
+/* ===== Estado ===== */
+let save = { unlocked: 0, got: {} };
+try { const s = JSON.parse(localStorage.getItem('mapa-bernardo') || 'null'); if (s && typeof s.unlocked === 'number') save = s; } catch (e) {}
+const persist = () => { try { localStorage.setItem('mapa-bernardo', JSON.stringify(save)); } catch (e) {} };
+
+const $ = (id) => document.getElementById(id);
+const app = $('app'), bg = $('bg');
+function show(id) { ['title', 'map', 'game', 'dialog', 'letter'].forEach((s) => $(s).classList.toggle('off', s !== id)); $('modal').classList.add('off'); }
+function setBg(src, awake) { if (src) bg.style.backgroundImage = `url(${src})`; setAwake(awake); }
+function setAwake(p) { bg.style.filter = `saturate(${(0.3 + 0.7 * p).toFixed(2)}) brightness(${(0.78 + 0.22 * p).toFixed(2)})`; }
+
+/* ===== Portada y mapa ===== */
+function openTitle() { setBg('img/bg_portada.jpg', 1); show('title'); }
+function renderMap() {
+  const bag = $('bag');
+  const items = CHAPTERS.filter((c) => save.got[c.id]);
+  bag.innerHTML = '<span class="bag-label">Mochila</span>' + (items.length ? items.map((c) => `<span class="bag-item" title="${c.obj.name}">${objIcon(c.obj.icon)}</span>`).join('') : '<span class="bag-empty">Todavía vacía</span>');
+  const list = $('chapters');
+  list.innerHTML = '';
+  const next = CHAPTERS.findIndex((c, i) => i <= save.unlocked && !save.got[c.id]);
+  CHAPTERS.forEach((ch, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    const locked = i > save.unlocked;
+    b.className = 'ch' + (locked ? ' locked' : '') + (i === next ? ' current' : '') + (ch.final ? ' final' : '');
+    b.innerHTML = `<div class="thumb" style="background-image:url(${ch.bg})"></div>
+      <div class="meta"><span class="num">${ch.num}</span><span class="name"></span><span class="sub"></span>
+      ${save.got[ch.id] ? `<span class="got">✓ ${ch.obj.name}</span>` : ''}</div>`;
+    b.querySelector('.name').textContent = ch.name;
+    b.querySelector('.sub').textContent = locked ? 'Bloqueado' : ch.sub;
+    if (!locked) b.addEventListener('click', () => { Sound.tick(); playChapter(i); });
+    else b.disabled = true;
+    list.appendChild(b);
+  });
+  bg.style.backgroundImage = 'none';
+  app.classList.remove('memory');
+  show('map');
+  const cur = list.querySelector('.current');
+  if (cur) cur.scrollIntoView({ block: 'center' });
+}
+
+/* ===== Diálogos ===== */
+function runDialog(lines) {
+  return new Promise((resolve) => {
+    if (!lines || !lines.length) return resolve();
+    let i = 0;
+    const sheet = $('sheet');
+    const render = () => {
+      const L = lines[i];
+      const p = L.who ? P[L.who] : null;
+      sheet.classList.toggle('narr', !p);
+      $('d-portrait').hidden = !p;
+      if (p) { $('d-portrait').style.backgroundImage = `url(${p.img})`; $('d-name').textContent = p.n; }
+      $('d-name').parentElement.hidden = !p;
+      $('d-chip').hidden = !L.memory;
+      $('d-text').textContent = L.text;
+      app.classList.toggle('memory', !!L.memory);
+    };
+    const finish = () => { cleanup(); app.classList.remove('memory'); resolve(); };
+    const next = () => { Sound.tick(); i++; if (i >= lines.length) finish(); else render(); };
+    const onKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next(); } };
+    const cleanup = () => { sheet.removeEventListener('click', next); sheet.removeEventListener('keydown', onKey); $('btn-skip').removeEventListener('click', finish); };
+    sheet.addEventListener('click', next);
+    sheet.addEventListener('keydown', onKey);
+    $('btn-skip').addEventListener('click', finish);
+    render();
+    show('dialog');
+    sheet.focus({ preventScroll: true });
+  });
+}
+
+/* ===== Modales ===== */
+function modal(html, buttons, fill) {
+  return new Promise((resolve) => {
+    const card = $('card');
+    card.innerHTML = html + '<div class="actions"></div>';
+    if (fill) fill(card);
+    const act = card.querySelector('.actions');
+    buttons.forEach(([label, val, ghost]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (ghost ? ' ghost' : ''); b.textContent = label;
+      b.addEventListener('click', () => { Sound.tick(); $('modal').classList.add('off'); resolve(val); });
+      act.appendChild(b);
+    });
+    $('modal').classList.remove('off');
+    act.querySelector('button').focus({ preventScroll: true });
+  });
+}
+
+/* ===== La carta ===== */
+function showLetter() {
+  return new Promise((resolve) => {
+    const body = $('letter-body');
+    body.innerHTML = '';
+    LETTER.forEach((t, i) => {
+      const p = document.createElement('p');
+      p.textContent = t;
+      if (i === 0) p.className = 'salute';
+      if (i === LETTER.length - 1) p.className = 'motto';
+      p.style.animationDelay = `${0.6 + i * 1.1}s`;
+      body.appendChild(p);
+    });
+    const sign = document.createElement('p');
+    sign.className = 'sign';
+    sign.innerHTML = 'Te quiere mucho,<br>tu abuelo Bernardo';
+    sign.style.animationDelay = `${0.6 + LETTER.length * 1.1}s`;
+    body.appendChild(sign);
+    const btn = $('btn-letter');
+    btn.style.animationDelay = `${1.4 + LETTER.length * 1.1}s`;
+    $('letter-scroll').scrollTop = 0;
+    Sound.music('letter');
+    show('letter');
+    const done = () => { btn.removeEventListener('click', done); Sound.tick(); resolve(); };
+    btn.addEventListener('click', done);
+  });
+}
+
+/* ===== Flujo de un capítulo ===== */
+let current = null;
+async function playChapter(i) {
+  const ch = CHAPTERS[i];
+  current = i;
+  setBg(ch.bg, ch.memory ? 0.9 : 0.15);
+  await runDialog(ch.intro);
+  await startLevel(ch);
+}
+
+let hudGoals = [];
+function renderHUD(state, set) {
+  $('g-moves').textContent = state.moves;
+  const box = $('g-goals');
+  if (!hudGoals.length || box.childElementCount !== state.goals.length) {
+    box.innerHTML = '';
+    hudGoals = state.goals.map((g) => {
+      const el = document.createElement('div'); el.className = 'goal';
+      el.innerHTML = `<img alt="${SETS[set][g.t].name}" src="${SETS[set][g.t].img}"><span></span>`;
+      box.appendChild(el); return el;
+    });
+  }
+  state.goals.forEach((g, k) => {
+    const left = Math.max(0, g.n - g.got);
+    hudGoals[k].classList.toggle('done', left === 0);
+    hudGoals[k].querySelector('span').textContent = left === 0 ? '✓' : left;
+  });
+}
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show'); }
+
+async function startLevel(ch) {
+  $('g-title').textContent = `${ch.num} · ${ch.name}`;
+  hudGoals = [];
+  show('game');
+  setAwake(ch.memory ? 0.9 : 0.15);
+  app.classList.toggle('memory', !!ch.memory);
+  const scene = await boardReady;
+  game.scale.refresh();
+  scene.startLevel({
+    set: ch.set, moves: ch.moves, types: ch.types, goals: ch.goals.map(([t, n]) => ({ t, n, got: 0 })),
+    onUpdate: (st) => { renderHUD(st, ch.set); const tot = st.goals.reduce((a, g) => a + g.n, 0), got = st.goals.reduce((a, g) => a + Math.min(g.n, g.got), 0); if (!ch.memory) setAwake(0.15 + 0.85 * got / tot); },
+    onCombo: (n) => { if (n === 2) toast('¡Bien!'); else if (n === 3) toast('¡Bárbaro!'); else if (n >= 4) toast('¡Qué genio!'); },
+    onEnd: (won) => endLevel(ch, won),
+  });
+}
+
+async function endLevel(ch, won) {
+  const idx = CHAPTERS.indexOf(ch);
+  if (won) {
+    setAwake(1);
+    toast('¡Lo lograste!');
+    Sound.win();
+    await new Promise((r) => setTimeout(r, 1000));
+    save.got[ch.id] = 1;
+    save.unlocked = Math.min(CHAPTERS.length - 1, Math.max(save.unlocked, idx + 1));
+    persist();
+    app.classList.remove('memory');
+    Sound.chime();
+    await modal(`<span class="kicker">Conseguiste</span><div class="icon${ch.final ? ' big' : ''}">${objIcon(ch.obj.icon)}</div><h3></h3><p></p>`, [['Seguir la historia', 1]],
+      (card) => { card.querySelector('h3').textContent = ch.obj.name; card.querySelector('p').textContent = ch.obj.desc; });
+    await runDialog(ch.outro);
+    if (ch.final) {
+      await showLetter();
+      Sound.music('game');
+      setBg(ch.bg, 1);
+      await runDialog(ch.epilogue);
+      Sound.chime();
+      $('dialog').classList.add('off');
+      await modal(`<span class="kicker">Fin</span><div class="icon big">${objIcon('llave')}</div><h3>El mapa de Bernardo</h3><p>En memoria de Bernardo y de Roberto.</p>`, [['Volver al mapa', 1]]);
+    }
+    renderMap();
+  } else {
+    app.classList.remove('memory');
+    Sound.lose();
+    const v = await modal(`<span class="kicker">Sin jugadas</span><h3>Casi lo tenías</h3><p>Probá de nuevo, cada tablero sale distinto.</p>`, [['Reintentar', 'retry'], ['Volver al mapa', 'map', 1]]);
+    if (v === 'retry') startLevel(ch); else renderMap();
+  }
+}
+
+/* ===== Tablero (Phaser) ===== */
+const CELL = 96;
+let resolveBoard;
+const boardReady = new Promise((r) => (resolveBoard = r));
+
+class BoardScene extends Phaser.Scene {
+  constructor() { super('board'); }
+  create() {
+    this.makeTex('finca', 0, 'b');
+    const gfx = this.add.graphics();
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      gfx.fillStyle(0xfff3dc, (r + c) % 2 ? 0.10 : 0.17);
+      gfx.fillRoundedRect(c * CELL + 4, r * CELL + 4, CELL - 8, CELL - 8, 14);
+    }
+    this.sel = this.add.graphics().setDepth(5);
+    this.fx = this.add.graphics().setDepth(6);
+    this.sprites = [];
+    this.set = 'finca';
+    this.input.on('pointerdown', (p) => this.onDown(p));
+    this.input.on('pointermove', (p) => this.onMove(p));
+    this.input.on('pointerup', (p) => this.onUp(p));
+    resolveBoard(this);
+  }
+  texKey(set, t, s) { return s === 'b' ? 'p_b' : `p_${set}_${t}${s || ''}`; }
+  key(p) { return this.texKey(this.set, p.t, p.s); }
+  makeTex(set, t, s) {
+    const key = this.texKey(set, t, s);
+    if (this.textures.exists(key)) return;
+    const tex = this.textures.createCanvas(key, 128, 128);
+    drawPiece(tex.getContext(), set, t, s);
+    tex.refresh();
+  }
+  xy(r, c) { return [c * CELL + CELL / 2, r * CELL + CELL / 2]; }
+  makeSprite(r, c, p, rowOverride) {
+    const [x, y] = this.xy(rowOverride === undefined ? r : rowOverride, c);
+    const s = this.add.image(x, y, this.key(p)).setDisplaySize(CELL * 0.9, CELL * 0.9).setDepth(2);
+    s.base = s.scaleX;
+    return s;
+  }
+  tween(cfg) { return new Promise((res) => this.tweens.add({ ...cfg, onComplete: res })); }
+  wait(ms) { return new Promise((res) => this.time.delayedCall(ms, res)); }
+
+  startLevel(cfg) {
+    this.tweens.killAll();
+    this.time.removeAllEvents();
+    this.sprites.flat().forEach((s) => s && s.destroy());
+    this.cfg = cfg;
+    this.set = cfg.set;
+    for (let t = 0; t < 6; t++) for (const s of [null, 'h', 'v', 'x']) this.makeTex(this.set, t, s);
+    this.state = { moves: cfg.moves, goals: cfg.goals };
+    this.rand = Math.random;
+    this.g = newGrid(this.rand, cfg.types);
+    this.sprites = [];
+    for (let r = 0; r < ROWS; r++) {
+      this.sprites.push([]);
+      for (let c = 0; c < COLS; c++) {
+        const s = this.makeSprite(r, c, this.g[r][c], r - ROWS - 1);
+        this.sprites[r].push(s);
+        this.tweens.add({ targets: s, y: this.xy(r, c)[1], duration: 380 + r * 40, ease: 'Bounce.easeOut', delay: c * 30 });
+      }
+    }
+    this.busy = true; this.ended = false; this.selected = null; this.down = null;
+    this.time.delayedCall(950, () => { this.busy = false; });
+    this.drawSel();
+    cfg.onUpdate(this.state);
+    this.armHint();
+  }
+
+  cellAt(p) {
+    const c = Math.floor(p.x / CELL), r = Math.floor(p.y / CELL);
+    return r >= 0 && r < ROWS && c >= 0 && c < COLS ? [r, c] : null;
+  }
+  onDown(p) {
+    if (this.busy || this.ended || !this.g) return;
+    const cell = this.cellAt(p);
+    if (!cell) return;
+    this.down = { cell, x: p.x, y: p.y, moved: false };
+  }
+  onMove(p) {
+    if (!this.down || this.down.moved || this.busy) return;
+    const dx = p.x - this.down.x, dy = p.y - this.down.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < CELL * 0.33) return;
+    this.down.moved = true;
+    const [r, c] = this.down.cell;
+    const t = Math.abs(dx) > Math.abs(dy) ? [r, c + Math.sign(dx)] : [r + Math.sign(dy), c];
+    this.down = null;
+    if (t[0] < 0 || t[0] >= ROWS || t[1] < 0 || t[1] >= COLS) return;
+    this.selected = null; this.drawSel();
+    this.trySwap([r, c], t);
+  }
+  onUp() {
+    if (!this.down) return;
+    const cell = this.down.cell;
+    this.down = null;
+    if (this.busy || this.ended) return;
+    if (this.selected && Math.abs(this.selected[0] - cell[0]) + Math.abs(this.selected[1] - cell[1]) === 1) {
+      const a = this.selected; this.selected = null; this.drawSel(); this.trySwap(a, cell);
+    } else {
+      this.selected = this.selected && this.selected[0] === cell[0] && this.selected[1] === cell[1] ? null : cell;
+      if (this.selected) Sound.tick();
+      this.drawSel();
+    }
+  }
+  drawSel() {
+    this.sel.clear();
+    if (!this.selected) return;
+    const [r, c] = this.selected;
+    this.sel.lineStyle(6, 0xf2b632, 1);
+    this.sel.strokeRoundedRect(c * CELL + 4, r * CELL + 4, CELL - 8, CELL - 8, 14);
+  }
+  armHint() {
+    if (this.hintTimer) this.hintTimer.remove();
+    this.hintTimer = this.time.delayedCall(6000, () => {
+      if (this.busy || this.ended) return;
+      const m = findMove(this.g);
+      if (!m) return;
+      m.forEach(([r, c]) => { const s = this.sprites[r][c]; if (s) this.tweens.add({ targets: s, angle: { from: -10, to: 10 }, duration: 110, yoyo: true, repeat: 3, onComplete: () => s.setAngle(0) }); });
+      this.armHint();
+    });
+  }
+
+  async animSwap(a, b) {
+    const sa = this.sprites[a[0]][a[1]], sb = this.sprites[b[0]][b[1]];
+    const [ax, ay] = this.xy(...a), [bx, by] = this.xy(...b);
+    await Promise.all([
+      this.tween({ targets: sa, x: bx, y: by, duration: 150, ease: 'Quad.easeInOut' }),
+      this.tween({ targets: sb, x: ax, y: ay, duration: 150, ease: 'Quad.easeInOut' }),
+    ]);
+    this.sprites[a[0]][a[1]] = sb; this.sprites[b[0]][b[1]] = sa;
+  }
+
+  async trySwap(a, b) {
+    if (this.busy || this.ended) return;
+    this.busy = true;
+    if (this.hintTimer) this.hintTimer.remove();
+    Sound.swap();
+    await this.animSwap(a, b);
+    swapCells(this.g, a, b);
+    const pa = this.g[a[0]][a[1]], pb = this.g[b[0]][b[1]];
+    let res = null;
+    if (pa.s === 'b' || pb.s === 'b') res = bombSwap(this.g, a, b);
+    else if (!findRuns(this.g).length) {
+      Sound.bad();
+      await this.animSwap(a, b);
+      swapCells(this.g, a, b);
+      this.busy = false; this.armHint();
+      return;
+    }
+    this.state.moves--;
+    this.cfg.onUpdate(this.state);
+    let combo = 0, first = true;
+    while (true) {
+      if (!res) res = resolveStep(this.g, first ? [a, b] : null);
+      first = false;
+      if (!res) break;
+      combo++;
+      await this.animClear(res, combo);
+      const got = applyClear(this.g, res);
+      this.state.goals.forEach((g) => { g.got += got[g.t] || 0; });
+      this.cfg.onUpdate(this.state);
+      await this.animGravity(gravity(this.g, this.rand, this.cfg.types));
+      res = null;
+    }
+    if (combo >= 2) this.cfg.onCombo(combo);
+    const won = this.state.goals.every((g) => g.got >= g.n);
+    if (won || this.state.moves <= 0) {
+      this.ended = true; this.busy = false;
+      await this.wait(won ? 250 : 500);
+      this.cfg.onEnd(won);
+      return;
+    }
+    if (!findMove(this.g)) {
+      reshuffle(this.g, this.rand);
+      await this.redraw();
+    }
+    this.busy = false;
+    this.armHint();
+  }
+
+  flashLine(r, c, s) {
+    const g = this.fx;
+    const draw = (x, y, w, h) => { g.fillStyle(0xfff6e6, 0.85); g.fillRoundedRect(x, y, w, h, 12); };
+    if (s === 'h' || s === 'x') draw(0, r * CELL + CELL * 0.3, COLS * CELL, CELL * 0.4);
+    if (s === 'v' || s === 'x') draw(c * CELL + CELL * 0.3, 0, CELL * 0.4, ROWS * CELL);
+    if (s === 'b') { g.fillStyle(0xf2b632, 0.35); g.fillRect(0, 0, COLS * CELL, ROWS * CELL); }
+  }
+
+  async animClear(res, combo) {
+    Sound.pop(combo);
+    if (res.triggered.some((t) => t.s === 'b') || res.clear.length > 25) Sound.bomb();
+    else if (res.triggered.length) Sound.zap();
+    if (res.created.length) Sound.special();
+    this.fx.clear();
+    res.triggered.forEach((t) => this.flashLine(t.r, t.c, t.s));
+    if (res.triggered.length) this.tweens.add({ targets: this.fx, alpha: { from: 1, to: 0 }, duration: 380, onComplete: () => { this.fx.clear(); this.fx.setAlpha(1); } });
+    const jobs = [];
+    for (const k of res.clear) {
+      const [r, c] = RC(k);
+      const s = this.sprites[r][c];
+      this.sprites[r][c] = null;
+      if (!s) continue;
+      jobs.push(this.tween({ targets: s, scale: s.base * 1.25, duration: 70 }).then(() => this.tween({ targets: s, scale: 0, alpha: 0, duration: 140, ease: 'Back.easeIn' })).then(() => s.destroy()));
+    }
+    for (const o of res.created) {
+      const s = this.sprites[o.r][o.c];
+      if (!s) continue;
+      s.setTexture(this.key(o.piece));
+      s.setDisplaySize(CELL * 0.9, CELL * 0.9); s.base = s.scaleX;
+      jobs.push(this.tween({ targets: s, scale: s.base * 1.3, duration: 140, yoyo: true }));
+    }
+    await Promise.all(jobs);
+  }
+
+  async animGravity(grav) {
+    const jobs = [];
+    const moved = grav.moves.map((m) => ({ ...m, s: this.sprites[m.from[0]][m.from[1]] }));
+    moved.forEach((m) => { this.sprites[m.from[0]][m.from[1]] = null; });
+    moved.forEach((m) => {
+      this.sprites[m.to[0]][m.to[1]] = m.s;
+      if (!m.s) return;
+      const d = m.to[0] - m.from[0];
+      jobs.push(this.tween({ targets: m.s, y: this.xy(...m.to)[1], duration: 90 + d * 55, ease: 'Quad.easeIn' }));
+    });
+    grav.spawns.forEach((sp) => {
+      const s = this.makeSprite(sp.r, sp.c, this.g[sp.r][sp.c], sp.fromRow);
+      this.sprites[sp.r][sp.c] = s;
+      const d = sp.r - sp.fromRow;
+      jobs.push(this.tween({ targets: s, y: this.xy(sp.r, sp.c)[1], duration: 90 + d * 55, ease: 'Quad.easeIn' }));
+    });
+    await Promise.all(jobs);
+  }
+
+  async redraw() {
+    this.sprites.flat().forEach((s) => s && s.destroy());
+    this.sprites = [];
+    for (let r = 0; r < ROWS; r++) {
+      this.sprites.push([]);
+      for (let c = 0; c < COLS; c++) { const s = this.makeSprite(r, c, this.g[r][c]); s.setScale(0); this.sprites[r].push(s); this.tweens.add({ targets: s, scale: s.base, duration: 260, delay: (r + c) * 15 }); }
+    }
+    toast('Mezclando');
+    await this.wait(320);
+  }
+}
+
+let game;
+imagesReady.then(() => {
+  game = new Phaser.Game({
+    type: Phaser.AUTO,
+    parent: 'board',
+    transparent: true,
+    audio: { noAudio: true },
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: COLS * CELL, height: ROWS * CELL },
+    scene: BoardScene,
+    banner: false,
+  });
+});
+
+/* ===== Botones ===== */
+$('btn-play').addEventListener('click', () => { Sound.unlock(); Sound.music('game'); Sound.tick(); renderMap(); });
+$('btn-back').addEventListener('click', async () => { Sound.tick(); const sc = await boardReady; sc.ended = true; app.classList.remove('memory'); renderMap(); });
+$('btn-unlock').addEventListener('click', () => { save.unlocked = CHAPTERS.length - 1; persist(); renderMap(); });
+document.querySelectorAll('.snd').forEach((b) => b.addEventListener('click', () => { Sound.unlock(); Sound.toggle(); if (!Sound.muted) Sound.music('game'); syncSoundButtons(); }));
+syncSoundButtons();
+let resetArmed = false;
+$('btn-reset').addEventListener('click', (e) => {
+  if (!resetArmed) { resetArmed = true; e.target.textContent = 'Tocá de nuevo para borrar todo'; setTimeout(() => { resetArmed = false; e.target.textContent = 'Borrar progreso'; }, 3500); return; }
+  save = { unlocked: 0, got: {} }; persist(); resetArmed = false; e.target.textContent = 'Borrar progreso'; renderMap();
+});
+openTitle();
+</script>
+</body>
+</html>
