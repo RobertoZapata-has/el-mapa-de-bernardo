@@ -31,11 +31,23 @@ Se puede instalar en el celular con el botón "Instalar en el celular" de la por
 - El progreso se guarda en el navegador de cada jugador.
 - `manifest.webmanifest`, `sw.js` e `icons/`: lo que hace falta para instalarlo como app y jugar sin conexión. Si cambiás imágenes o el juego, subí la versión en `VERSION` dentro de `sw.js` para que los celulares bajen lo nuevo.
 
-## Fichas especiales
+## Boosters
 
-- **4 en línea:** ficha rayada que limpia una fila o una columna.
-- **En forma de L o T:** ficha que limpia fila y columna.
-- **5 en línea:** la Llave. Intercambiala con cualquier ficha y se lleva todas las de ese tipo.
+| Cómo se arma | Booster | Qué hace |
+|---|---|---|
+| 4 en línea | Zonda | Barre una fila o una columna |
+| Cuadrado de 4 | Cóndor | Rompe su cruz y vuela a una ficha que falte para el objetivo |
+| Forma de L o T | Volcán | Explota y rompe todo alrededor |
+| 5 en línea | La Llave | Se lleva todas las fichas de un color |
+
+Se activan tocándolos o deslizándolos. Dos boosters juntos se combinan: Zonda + Zonda hace una cruz, Zonda + Volcán barre tres filas y tres columnas, Volcán + Volcán hace una explosión enorme, el Cóndor lleva en las patas al otro booster, la Llave convierte todo un color en el otro booster, y dos Llaves limpian el tablero. Las jugadas que sobran al ganar se vuelven Zondas.
+
+## Vidas, monedas y mercado
+
+- 5 vidas. Se pierde una al no pasar un nivel (o al salir a mitad de partida) y se recupera una cada 30 minutos.
+- Monedas: 25 por nivel ganado + 5 por cada jugada que sobra, y el premio del día.
+- Mercado: llenar vidas, boosters para empezar el nivel (Zonda, Volcán, Llave) y herramientas (Pala, Tijera de podar, Guante de cosecha).
+- Al quedarte sin jugadas podés comprar +5 jugadas.
 
 ---
 
