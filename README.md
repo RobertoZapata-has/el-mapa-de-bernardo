@@ -42,6 +42,12 @@ Se puede instalar en el celular con el botón "Instalar en el celular" de la por
 
 Se activan tocándolos o deslizándolos. Dos boosters juntos se combinan: Zonda + Zonda hace una cruz, Zonda + Volcán barre tres filas y tres columnas, Volcán + Volcán hace una explosión enorme, el Cóndor lleva en las patas al otro booster, la Llave convierte todo un color en el otro booster, y dos Llaves limpian el tablero. Las jugadas que sobran al ganar se vuelven Zondas.
 
+## Pantalla principal y escenas
+
+- El mapa de Mendoza es la pantalla principal: cada lugar es un punto sobre el dibujo, con el siguiente capítulo marcado con "Jugar". Abajo están el Mercado, la Mochila y el Premio del día.
+- Los diálogos muestran una ilustración de la escena cuando existe la imagen `img/esc_*.jpg` correspondiente (si falta, el diálogo se ve igual que antes).
+- Los boosters tienen efectos grandes que se salen del tablero: zoom al armarlos, el Cóndor que despega fuera de la pantalla, la erupción del Volcán y la Llave con rayos.
+
 ## Vidas, monedas y mercado
 
 - 5 vidas. Se pierde una al no pasar un nivel (o al salir a mitad de partida) y se recupera una cada 30 minutos.

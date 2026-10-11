@@ -56,30 +56,69 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(44px,13vw,64px);li
 .proto{font-size:13px;color:var(--cream-dim);opacity:.8}
 
 /* Mapa de capítulos */
-#map{background:linear-gradient(rgba(27,18,13,.35),rgba(27,18,13,.78) 30%,rgba(27,18,13,.94) 60%),url(img/bg_mapa.jpg) center top/cover no-repeat,#1b120d;overflow:hidden}
-.map-head{padding-inline:16px;padding-block:18px 10px;display:flex;flex-direction:column;gap:10px;max-width:560px;margin:0 auto;width:100%;box-sizing:border-box}
-.map-head h2{font-family:var(--display);font-weight:400;font-size:34px;margin:0;text-shadow:0 3px 0 var(--malbec-deep),0 6px 16px rgba(0,0,0,.6)}
-.map-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.snd{appearance:none;border:0;background:var(--glass);color:var(--cream);border-radius:12px;font-weight:700;font-size:14px;padding:10px 12px;min-height:44px;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
-.bag{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:rgba(30,20,14,.72);border:1px solid var(--line);border-radius:14px;padding:10px 12px;min-height:44px}
-.bag-label{font-size:13px;font-weight:700;color:var(--cream-dim);margin-right:4px}
-.bag-item{display:inline-flex;width:36px;height:36px}.bag-item>*{width:100%;height:100%;object-fit:contain}
-.bag-empty{font-size:14px;color:var(--cream-dim)}
-.chapters{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-inline:16px;padding-block:6px 30px}
-.chapters-inner{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
-.ch{display:grid;grid-template-columns:86px 1fr;gap:12px;align-items:center;text-align:left;width:100%;border:1px solid var(--line);background:rgba(30,20,14,.78);border-radius:16px;padding:8px;color:var(--cream)}
-.ch.final .num{color:#f08a5a}
-.ch .thumb{width:86px;height:86px;border-radius:12px;background:#000 center 18%/cover no-repeat}
-.ch .meta{display:flex;flex-direction:column;gap:3px;min-width:0}
-.ch .num{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
-.ch .name{font-family:var(--display);font-size:20px;line-height:1.1}
-.ch .sub{font-size:14px;color:var(--cream-dim)}
-.ch .got{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--ok)}
-.ch.locked{opacity:.5}
-.ch.locked .thumb{filter:grayscale(1) brightness(.6)}
-.ch.current{border-color:var(--gold);box-shadow:0 0 0 2px rgba(242,182,50,.35)}
-.map-foot{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding-block:10px 4px}
 .link{appearance:none;background:none;border:0;color:var(--cream-dim);font-size:14px;text-decoration:underline;padding:8px}
+/* Pantalla principal: mapa de Mendoza con los lugares, barra arriba y menú abajo */
+#map{background:#2a3a1c}
+.hub-top{position:absolute;top:0;left:0;right:0;z-index:2;display:flex;align-items:center;gap:8px;padding-inline:12px;padding-block:10px 18px;background:linear-gradient(rgba(20,12,8,.82),rgba(20,12,8,0))}
+.hub-top .spacer-x{flex:1}
+.icon-btn{appearance:none;border:0;width:44px;height:44px;border-radius:50%;background:rgba(30,20,14,.85);color:var(--cream);font:800 22px/1 var(--body);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer}
+.world{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;position:relative}
+.world-inner{position:relative;max-width:560px;margin:0 auto;padding-block:64px 104px}
+.world-inner #nodes{position:absolute;left:0;right:0;top:64px;bottom:104px}
+.world-img{display:block;width:100%;height:auto;max-width:none}
+.node{position:absolute;transform:translate(-50%,-50%);appearance:none;border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--cream)}
+.node .disc{position:relative;width:58px;height:58px;border-radius:50%;background:#2b1a12 center 30%/cover no-repeat;box-shadow:0 0 0 3px #fff6e6,0 0 0 7px var(--malbec),0 8px 14px rgba(0,0,0,.55)}
+.node .lbl{font:800 12px var(--body);background:rgba(30,20,14,.88);padding:3px 9px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.node .badge{position:absolute;right:-6px;bottom:-4px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:800 13px var(--body);box-shadow:0 2px 4px rgba(0,0,0,.4)}
+.node.done .disc{box-shadow:0 0 0 3px #fff6e6,0 0 0 7px var(--gold),0 8px 14px rgba(0,0,0,.55)}
+.node.done .badge{background:var(--ok);color:#10301c}
+.node.locked .disc{filter:grayscale(1) brightness(.55)}
+.node.locked .badge{background:#3b2a1c;color:var(--cream-dim)}
+.node.locked .lbl{opacity:.7}
+.node.current .disc{animation:pulse 1.4s ease-in-out infinite}
+.node .flag{position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);background:var(--malbec);color:var(--cream);font:800 13px var(--body);padding:5px 12px;border-radius:10px;box-shadow:0 3px 0 var(--malbec-deep),inset 0 0 0 1.5px rgba(242,182,50,.6);white-space:nowrap;animation:bob 1.2s ease-in-out infinite}
+.node .flag::after{content:"";position:absolute;top:100%;left:50%;margin-left:-6px;border:6px solid transparent;border-top-color:var(--malbec)}
+.node.final .disc{width:66px;height:66px}
+.node.edge-r .flag{left:auto;right:-6px;transform:none}
+.node.edge-r .flag::after{left:auto;right:18px}
+.node.edge-r .lbl{transform:translateX(-18%)}
+@keyframes pulse{50%{transform:scale(1.08);box-shadow:0 0 0 3px #fff6e6,0 0 0 7px var(--gold),0 0 22px 8px rgba(242,182,50,.6)}}
+.hub-nav{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;justify-content:center;gap:10px;padding-inline:12px;padding-block:14px calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(rgba(20,12,8,0),rgba(20,12,8,.9) 40%)}
+.nav-b{appearance:none;position:relative;border:0;flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:2px;background:linear-gradient(#5e3a22,#3d2416);color:var(--cream);font:800 13px var(--body);border-radius:16px;padding:6px 6px 8px;box-shadow:0 4px 0 #24150d,inset 0 0 0 1.5px rgba(242,182,50,.5);cursor:pointer}
+.nav-b:active{transform:translateY(2px);box-shadow:0 2px 0 #24150d,inset 0 0 0 1.5px rgba(242,182,50,.5)}
+.nav-b img,.nav-b .nav-ico{width:46px;height:46px;object-fit:contain;margin-top:-18px;filter:drop-shadow(0 4px 4px rgba(0,0,0,.45))}
+.nav-b .nav-ico svg{width:100%;height:100%}
+.nav-b .dot{position:absolute;top:-4px;right:-2px;width:16px;height:16px;border-radius:50%;background:#e8453c;box-shadow:0 0 0 2px #fff6e6}
+.nav-b .nav-count{position:absolute;top:-6px;right:-4px;min-width:22px;height:22px;border-radius:999px;background:var(--malbec);display:grid;place-items:center;font-size:12px;box-shadow:inset 0 0 0 1.5px rgba(242,182,50,.6)}
+.world-pad-top{height:0}
+.bag-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%}
+.bag-cell{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--cream-dim);text-align:center}
+.bag-cell .bi{width:56px;height:56px;border-radius:14px;background:rgba(255,246,230,.08);display:grid;place-items:center;padding:6px;box-sizing:border-box}
+.bag-cell .bi>*{width:100%;height:100%;object-fit:contain}
+.bag-cell.missing .bi{opacity:.35;filter:grayscale(1) brightness(.5)}
+.more-list{display:flex;flex-direction:column;gap:8px;width:100%}
+.more-list button{appearance:none;border:0;border-radius:12px;background:rgba(255,246,230,.08);color:var(--cream);font:700 15px var(--body);padding:12px;text-align:left;cursor:pointer;box-shadow:inset 0 0 0 1px var(--line)}
+/* Efectos grandes sobre toda la pantalla */
+#fx{position:absolute;inset:0;pointer-events:none;z-index:4;overflow:hidden}
+.fx-img,.fx-glow,.fx-ember,.fx-rays,.fx-condor,.fx-label{position:absolute;will-change:transform,opacity}
+.fx-img{object-fit:contain;filter:drop-shadow(0 12px 16px rgba(0,0,0,.45))}
+.fx-glow{border-radius:50%;background:radial-gradient(circle,rgba(255,244,200,.95),rgba(242,182,50,.55) 38%,rgba(242,182,50,0) 70%)}
+.fx-glow.hot{background:radial-gradient(circle,rgba(255,240,180,.95),rgba(255,120,40,.6) 40%,rgba(255,80,0,0) 70%)}
+.fx-glow.cool{background:radial-gradient(circle,rgba(235,248,255,.95),rgba(150,205,255,.55) 40%,rgba(150,205,255,0) 70%)}
+.fx-flash{position:absolute;inset:0}
+.fx-ember{border-radius:50%;background:radial-gradient(circle,#fff3b0,#ff9a3a 55%,rgba(255,80,0,0) 72%)}
+.fx-rays{border-radius:50%;background:repeating-conic-gradient(rgba(255,226,140,.85) 0 9deg,rgba(255,226,140,0) 9deg 24deg);-webkit-mask:radial-gradient(circle,#000 25%,transparent 70%);mask:radial-gradient(circle,#000 25%,transparent 70%)}
+.fx-condor img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 16px 18px rgba(0,0,0,.45))}
+.fx-condor .carry{position:absolute;left:30%;top:62%;width:40%;height:40%;object-fit:contain}
+.fx-label{font-family:var(--display);font-size:34px;color:#fff6e6;text-shadow:0 3px 0 var(--malbec-deep),0 6px 16px rgba(0,0,0,.6);white-space:nowrap;transform:translate(-50%,-50%)}
+/* Escenas de la historia */
+.scene{margin:0 auto 12px;width:calc(100% - 24px);max-width:540px;aspect-ratio:16/9;border-radius:18px;overflow:hidden;box-shadow:0 0 0 3px #fff6e6,0 0 0 6px var(--malbec),0 16px 30px rgba(0,0,0,.55);background:#000}
+.scene img{display:block;width:100%;height:100%;object-fit:cover;animation:kb 16s ease-in-out infinite alternate}
+.scene.in{animation:sceneIn .5s ease both}
+.memory .scene img{filter:sepia(.55) saturate(.8)}
+@keyframes kb{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.12) translate(-2%,-1.5%)}}
+@keyframes sceneIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.scene img{animation:none}.node.current .disc,.node .flag{animation:none}}
 
 /* Juego */
 #game{padding-inline:12px;padding-block:10px 14px;box-sizing:border-box;gap:10px}
@@ -218,24 +257,24 @@ button.pill{appearance:none;cursor:pointer}
     </div>
   </section>
 
-  <section id="map" class="screen off" aria-label="Capítulos">
-    <div class="map-head">
-      <div class="map-top"><h2>Mendoza</h2><button class="snd" type="button" aria-pressed="true">Sonido: sí</button></div>
-      <div class="stats">
-        <div class="pill lives" title="Vidas"><img src="img/ui_corazon.png" alt="Vidas"><b class="lives-count">5</b><span class="lives-timer">Llenas</span></div>
-        <button class="pill coins" type="button" data-shop title="Monedas"><img src="img/ui_moneda.png" alt="Monedas"><b class="coins-count">0</b><span class="plus" aria-hidden="true">+</span></button>
-        <button class="pill daily" id="btn-daily" type="button" hidden><img src="img/ui_cofre.png" alt=""><span>Premio del día</span></button>
-        <button class="pill shop-btn" type="button" data-shop><img src="img/ui_bolsa.png" alt=""><span>Mercado</span></button>
-      </div>
-      <div class="bag" id="bag"></div>
+  <section id="map" class="screen off" aria-label="Mapa de Mendoza">
+    <div class="hub-top">
+      <div class="pill lives" title="Vidas"><img src="img/ui_corazon.png" alt="Vidas"><b class="lives-count">5</b><span class="lives-timer">Llenas</span></div>
+      <button class="pill coins" type="button" data-shop title="Monedas"><img src="img/ui_moneda.png" alt="Monedas"><b class="coins-count">0</b><span class="plus" aria-hidden="true">+</span></button>
+      <span class="spacer-x"></span>
+      <button class="icon-btn" id="btn-more" type="button" aria-label="Opciones">⋯</button>
     </div>
-    <div class="chapters"><div class="chapters-inner" id="chapters"></div>
-      <div class="map-foot">
-        <button class="link install" type="button" hidden>Instalar en el celular</button>
-        <button class="link" id="btn-unlock" type="button">Desbloquear todo (modo prueba)</button>
-        <button class="link" id="btn-reset" type="button">Borrar progreso</button>
+    <div class="world" id="world">
+      <div class="world-inner">
+        <img class="world-img" src="img/bg_mapa.jpg" alt="Mapa de Mendoza con los lugares del juego">
+        <div id="nodes"></div>
       </div>
     </div>
+    <nav class="hub-nav" aria-label="Menú">
+      <button class="nav-b" type="button" data-shop><img src="img/ui_bolsa.png" alt=""><span>Mercado</span></button>
+      <button class="nav-b" id="btn-bag" type="button"><span class="nav-ico" id="bag-ico"></span><span>Mochila</span><b class="nav-count" id="bag-count">0</b></button>
+      <button class="nav-b" id="btn-daily" type="button"><img src="img/ui_cofre.png" alt=""><span>Premio</span><i class="dot" id="daily-dot" hidden></i></button>
+    </nav>
   </section>
 
   <section id="game" class="screen off" aria-label="Partida">
@@ -267,8 +306,11 @@ button.pill{appearance:none;cursor:pointer}
     <div class="shop-list" id="shop-list"></div>
   </section>
 
+  <div id="fx" aria-hidden="true"></div>
+
   <section id="dialog" class="screen off" aria-live="polite">
     <button class="skip" id="btn-skip" type="button">Saltar</button>
+    <figure class="scene" id="scene" hidden><img id="scene-img" alt=""></figure>
     <div class="sheet" id="sheet" role="button" tabindex="0">
       <div class="portrait" id="d-portrait"></div>
       <div class="say">
@@ -832,56 +874,56 @@ const P = {
   nieto: { n: 'El nieto', img: 'img/nieto.jpg' },
   nieta: { n: 'La nieta', img: 'img/nieta.jpg' },
 };
-const N = (text) => ({ text });
-const S = (who, text, memory) => ({ who, text, memory: !!memory });
+const N = (text, img) => (img ? { text, img } : { text });
+const S = (who, text, memory, img) => (img ? { who, text, memory: !!memory, img } : { who, text, memory: !!memory });
 
 const CHAPTERS = [
   { id: 'prologo', num: 'Prólogo', name: 'Córdoba', sub: 'El que dejó todo por amor', bg: 'img/bg_prologo.jpg', memory: true, set: 'finca',
     moves: 16, types: 5, goals: [[2, 18], [1, 18]],
     obj: { icon: 'gorra', name: 'La gorra de oficial', desc: 'Bernardo dejó el ascenso, pero se llevó la gorra de recuerdo.' },
-    intro: [N('Córdoba, fines de los años 60.'), S('bernardo_policia', 'Me ofrecen el ascenso. Uniforme nuevo, sueldo fijo. Todo lo que siempre quise.', 1), S('bernardo_policia', 'Pero ella se va a Mendoza mañana, en el primer colectivo.', 1),
+    intro: [N('Córdoba, fines de los años 60.', 'img/esc_prologo.jpg'), S('bernardo_policia', 'Me ofrecen el ascenso. Uniforme nuevo, sueldo fijo. Todo lo que siempre quise.', 1), S('bernardo_policia', 'Pero ella se va a Mendoza mañana, en el primer colectivo.', 1),
       N('Deslizá una ficha para juntar tres iguales. Con 4 en línea aparece el Zonda, con un cuadrado de 4 el Cóndor, con una L o una T el Volcán y con 5 en línea la Llave.'),
       N('Tocá un booster para usarlo, o deslizalo contra otro booster para combinarlos.')],
-    outro: [S('bernardo_policia', 'Si me quedo, lo tengo todo. Si me voy, la tengo a ella.', 1), N('A la mañana siguiente, Bernardo se subió a ese colectivo.')] },
+    outro: [S('bernardo_policia', 'Si me quedo, lo tengo todo. Si me voy, la tengo a ella.', 1), N('A la mañana siguiente, Bernardo se subió a ese colectivo.', 'img/esc_colectivo.jpg')] },
   { id: 'finca', num: 'Capítulo 1', name: 'La finca de Bernardo', sub: 'Maipú', bg: 'img/bg_finca.jpg', set: 'finca',
     moves: 18, types: 5, goals: [[0, 26], [2, 22]],
     obj: { icon: 'cuaderno', name: 'El cuaderno de Bernardo', desc: 'Acertijos, dibujos y una foto de dos muchachos en la viña.' },
-    intro: [N('Maipú, hoy.'), S('nieto', 'La finca del abuelo sigue igual. El parral, los álamos, la acequia...'), S('nieto', 'En el galpón había una caja con su nombre. Adentro: un cuaderno y medio mapa.'), S('nieto', 'Y una foto de dos muchachos en la viña. Uno es el abuelo. ¿Y el otro?')],
+    intro: [N('Maipú, hoy.'), S('nieto', 'La finca del abuelo sigue igual. El parral, los álamos, la acequia...'), S('nieto', 'En el galpón había una caja con su nombre. Adentro: un cuaderno y medio mapa.', 0, 'img/esc_caja.jpg'), S('nieto', 'Y una foto de dos muchachos en la viña. Uno es el abuelo. ¿Y el otro?')],
     outro: [S('nieto', 'La primera página dice: "Lo que el agua guarda, la familia lo encuentra".'), S('nieto', 'Abajo hay un nombre escrito con lápiz: Roberto.')] },
   { id: 'ruinas', num: 'Capítulo 2', name: 'Ruinas de San Francisco', sub: 'Área Fundacional', bg: 'img/bg_ruinas.jpg', set: 'finca',
     moves: 19, types: 5, goals: [[3, 28], [4, 28]],
     obj: { icon: 'mapa', name: 'El mapa completo', desc: 'Las dos mitades encajan: marcas por toda Mendoza.' },
     intro: [N('Ciudad de Mendoza, junto a las ruinas.'), S('nieta', '¿Vos también tenés medio mapa? El mío era de mi abuelo Roberto.'), S('nieto', 'Entonces nuestros abuelos se conocían...'), S('nieta', 'Si las dos mitades encajan, sabemos adónde ir.')],
-    outro: [S('nieta', 'Encajan perfecto. Mirá todas estas marcas.'), S('nieto', 'Y en el centro dice: "La Llave del Agua".')] },
+    outro: [S('nieta', 'Encajan perfecto. Mirá todas estas marcas.', 0, 'img/esc_mapa.jpg'), S('nieto', 'Y en el centro dice: "La Llave del Agua".')] },
   { id: 'cerro', num: 'Capítulo 3', name: 'Cerro de la Gloria', sub: 'Parque General San Martín', bg: 'img/bg_cerro.jpg', set: 'finca',
     moves: 23, types: 6, goals: [[1, 24], [5, 22]],
     obj: { icon: 'frag1', name: 'Primer fragmento', desc: 'La cabeza de la Llave, con su piedra turquesa en forma de gota.' },
     intro: [S('nieto', 'La primera marca está en el Cerro de la Gloria.'), S('nieta', 'El cuaderno dice: "Contá los caballos y mirá hacia la cordillera".')],
-    outro: [S('nieta', '¡Acá estaba! Escondida al pie del monumento.'), S('nieto', 'El primer pedazo de la Llave.')] },
+    outro: [S('nieta', '¡Acá estaba! Escondida al pie del monumento.', 0, 'img/esc_cerro.jpg'), S('nieto', 'El primer pedazo de la Llave.')] },
   { id: 'villavicencio', num: 'Capítulo 4', name: 'Villavicencio', sub: 'El hotel y los caracoles', bg: 'img/bg_villavicencio.jpg', set: 'finca',
     moves: 22, types: 6, goals: [[5, 22], [0, 22], [3, 18]],
     obj: { icon: 'frag2', name: 'Segundo fragmento', desc: 'Estaba debajo del puentecito del jardín.' },
-    intro: [S('nieta', 'Alguien estuvo acá antes que nosotros. Hay pisadas frescas.'), S('nieto', 'No somos los únicos que buscan la Llave.')],
+    intro: [S('nieta', 'Alguien estuvo acá antes que nosotros. Hay pisadas frescas.', 0, 'img/esc_coleccionista.jpg'), S('nieto', 'No somos los únicos que buscan la Llave.')],
     outro: [S('nieto', 'Lo encontramos primero. Por poco.'), S('nieta', 'Tenemos que apurarnos.')] },
   { id: 'potrerillos', num: 'Capítulo 5', name: 'Potrerillos', sub: 'El pueblo bajo el agua', bg: 'img/bg_potrerillos.jpg', set: 'finca',
     moves: 25, types: 6, goals: [[2, 32], [4, 20]],
     obj: { icon: 'frag3', name: 'Tercer fragmento', desc: 'Roberto lo había dejado en el pueblo viejo, antes del dique.' },
-    intro: [S('nieta', 'Mi abuelo manejaba camiones de YPF por esta ruta. Siempre paraba en el pueblo viejo.'), S('roberto_camionero', 'Nadie le pregunta nada a un camionero, Bernardo. Dámelo a mí, que yo lo escondo en el camino.', 1), S('nieto', 'Pero el pueblo viejo quedó bajo el agua cuando hicieron el dique...')],
+    intro: [S('nieta', 'Mi abuelo manejaba camiones de YPF por esta ruta. Siempre paraba en el pueblo viejo.'), S('roberto_camionero', 'Nadie le pregunta nada a un camionero, Bernardo. Dámelo a mí, que yo lo escondo en el camino.', 1, 'img/esc_camion.jpg'), S('nieto', 'Pero el pueblo viejo quedó bajo el agua cuando hicieron el dique...')],
     outro: [N('Con el agua baja aparecen las piedras del pueblo viejo.'), S('nieta', 'Ahí está. Mi abuelo sabía elegir escondites.')] },
   { id: 'puente', num: 'Capítulo 6', name: 'El Trasandino', sub: 'El viaje de Roberto', bg: 'img/bg_puente.jpg', memory: true, set: 'tren',
     moves: 25, types: 6, goals: [[0, 26], [2, 26], [1, 16]],
     obj: { icon: 'boleto', name: 'El boleto del Trasandino', desc: 'Roberto lo guardó toda la vida. Atrás tiene algo escrito.' },
-    intro: [N('Años 70. Estación de Puente del Inca.'), S('roberto_viajero', '¡Nunca salí de Mendoza y ahora me voy a Chile en tren!', 1), S('bernardo_obrero', 'Llevá la caja hasta arriba, Roberto. Allá no la va a buscar nadie.', 1), S('roberto_viajero', '¿Y vos no venís?', 1), S('bernardo_obrero', 'Yo me quedo. Tengo tres chicos que criar.', 1)],
+    intro: [N('Años 70. Estación de Puente del Inca.', 'img/esc_estacion.jpg'), S('roberto_viajero', '¡Nunca salí de Mendoza y ahora me voy a Chile en tren!', 1), S('bernardo_obrero', 'Llevá la caja hasta arriba, Roberto. Allá no la va a buscar nadie.', 1), S('roberto_viajero', '¿Y vos no venís?', 1), S('bernardo_obrero', 'Yo me quedo. Tengo tres chicos que criar.', 1)],
     outro: [S('roberto_viajero', 'Fue mi único viaje a Chile. Y lo hice por un amigo.', 1), N('Roberto guardó el boleto toda su vida.')] },
   { id: 'cristo', num: 'Capítulo 7', name: 'Cristo Redentor', sub: 'La frontera', bg: 'img/bg_cristo.jpg', set: 'tren',
     moves: 24, types: 6, goals: [[3, 28], [5, 28]],
     obj: { icon: 'frag4', name: 'Cuarto fragmento', desc: 'Lo que Roberto subió hasta la cordillera.' },
     intro: [S('nieta', 'Atrás del boleto dice: "A los pies del Cristo, mirando a los dos países".'), S('nieto', 'Qué frío hace acá arriba. Imaginate subir en esa época.')],
-    outro: [S('nieta', 'Mi abuelo subió hasta acá solo para cuidar el secreto del tuyo.'), S('nieto', 'Y el mío nunca se lo olvidó.')] },
+    outro: [S('nieta', 'Mi abuelo subió hasta acá solo para cuidar el secreto del tuyo.', 0, 'img/esc_cristo.jpg'), S('nieto', 'Y el mío nunca se lo olvidó.')] },
   { id: 'uco', num: 'Capítulo 8', name: 'Valle de Uco', sub: 'Las cosechas', bg: 'img/bg_uco.jpg', set: 'finca',
     moves: 26, types: 6, goals: [[0, 34], [1, 22]],
     obj: { icon: 'frag5', name: 'Quinto fragmento', desc: 'Entre las raíces de la cepa más vieja.' },
-    intro: [S('nieto', 'El cuaderno dice que el abuelo trabajó acá muchas cosechas.'), S('bernardo_obrero', 'No tengo plata, pero tengo las manos. Con eso alcanza para que mis hijos coman.', 1)],
+    intro: [S('nieto', 'El cuaderno dice que el abuelo trabajó acá muchas cosechas.'), S('bernardo_obrero', 'No tengo plata, pero tengo las manos. Con eso alcanza para que mis hijos coman.', 1, 'img/esc_cosecha.jpg')],
     outro: [S('nieto', 'Cada racimo de acá era un plato de comida en su mesa.'), S('nieta', 'Y mirá: escondió el fragmento entre sus viñas.')] },
   { id: 'atuel', num: 'Capítulo 9', name: 'Cañón del Atuel', sub: 'San Rafael', bg: 'img/bg_atuel.jpg', set: 'finca',
     moves: 26, types: 6, goals: [[3, 28], [4, 28], [5, 22]],
@@ -892,8 +934,8 @@ const CHAPTERS = [
     moves: 27, types: 6, goals: [[0, 30], [3, 30], [5, 26]],
     obj: { icon: 'llave', name: 'La Llave del Agua', desc: 'Los seis fragmentos encajan. La Llave está entera otra vez.' },
     intro: [N('Malargüe. Atardece en la Payunia.'), S('nieta', 'La última marca del mapa. Acá no hay más que volcanes.'), S('nieto', 'El cuaderno dice: "Donde el fuego se hizo piedra, la Llave abre lo que guardé".'), S('nieta', 'Esta vez llegamos antes que el coleccionista.')],
-    outro: [N('Las seis piezas encajan una por una. La Llave abre una cajita de lata escondida entre las piedras.'), S('nieta', 'No hay oro...'), S('nieto', 'Hay un sobre. Tiene mi nombre. Y dice: "Para tu cumpleaños número 10".')],
-    epilogue: [S('nieto', 'Tuvo la Llave en la mano y eligió no venderla.'), S('nieta', 'Igual que cuando dejó Córdoba. Eligió a los suyos.'), S('nieto', 'Tu abuelo y el mío, cuidando el mismo secreto durante cincuenta años.'), S('nieta', 'Para que un día nos encontráramos nosotros.'), N('La Llave del Agua quedó en un museo de Mendoza, para que la vea todo el que venga. La carta volvió a la caja de Bernardo, en la finca de Maipú.')] },
+    outro: [N('Las seis piezas encajan una por una. La Llave abre una cajita de lata escondida entre las piedras.', 'img/esc_llave.jpg'), S('nieta', 'No hay oro...'), S('nieto', 'Hay un sobre. Tiene mi nombre. Y dice: "Para tu cumpleaños número 10".')],
+    epilogue: [S('nieto', 'Tuvo la Llave en la mano y eligió no venderla.'), S('nieta', 'Igual que cuando dejó Córdoba. Eligió a los suyos.'), S('nieto', 'Tu abuelo y el mío, cuidando el mismo secreto durante cincuenta años.'), S('nieta', 'Para que un día nos encontráramos nosotros.'), N('La Llave del Agua quedó en un museo de Mendoza, para que la vea todo el que venga. La carta volvió a la caja de Bernardo, en la finca de Maipú.', 'img/esc_museo.jpg')] },
 ];
 
 const LETTER = [
@@ -953,7 +995,7 @@ function refreshStats() {
   document.querySelectorAll('.coins-count').forEach((e) => { e.textContent = save.coins; });
   document.querySelectorAll('.lives-count').forEach((e) => { e.textContent = save.lives; });
   document.querySelectorAll('.lives-timer').forEach((e) => { e.textContent = save.lives >= MAX_LIVES ? 'Llenas' : fmtTime(nextLifeIn()); });
-  const d = $('btn-daily'); if (d) d.hidden = save.daily === today();
+  const dd = $('daily-dot'); if (dd) dd.hidden = save.daily === today();
   updateToolbar();
 }
 
@@ -965,36 +1007,80 @@ function setAwake(p) { bg.style.filter = `saturate(${(0.3 + 0.7 * p).toFixed(2)}
 
 /* ===== Portada y mapa ===== */
 function openTitle() { setBg('img/bg_portada.jpg', 1); show('title'); }
+const NODES = {
+  prologo: [86, 95], finca: [60, 88], ruinas: [72, 73], cerro: [70, 58], villavicencio: [32, 52], potrerillos: [56, 45],
+  puente: [83, 38], cristo: [36, 27], uco: [80, 22], atuel: [34, 12], payunia: [72, 7],
+};
+const BAG_SVG = `<svg viewBox="0 0 64 64"><path d="M20 18c0-8 5-12 12-12s12 4 12 12" fill="none" stroke="#6b3f22" stroke-width="5"/><rect x="10" y="16" width="44" height="42" rx="12" fill="#a8683a"/><rect x="10" y="16" width="44" height="16" rx="10" fill="#8a5230"/><rect x="18" y="36" width="28" height="16" rx="5" fill="#8a5230"/><rect x="29" y="28" width="6" height="10" rx="2" fill="#e6b84a"/></svg>`;
 function renderMap() {
-  const bag = $('bag');
-  const items = CHAPTERS.filter((c) => save.got[c.id]);
-  bag.innerHTML = '<span class="bag-label">Mochila</span>' + (items.length ? items.map((c) => `<span class="bag-item" title="${c.obj.name}">${objIcon(c.obj.icon)}</span>`).join('') : '<span class="bag-empty">Todavía vacía</span>');
-  const list = $('chapters');
-  list.innerHTML = '';
+  const got = CHAPTERS.filter((c) => save.got[c.id]);
+  $('bag-ico').innerHTML = BAG_SVG;
+  $('bag-count').textContent = got.length;
+  const box = $('nodes');
+  box.innerHTML = '';
   const next = CHAPTERS.findIndex((c, i) => i <= save.unlocked && !save.got[c.id]);
   CHAPTERS.forEach((ch, i) => {
+    const [x, y] = NODES[ch.id];
+    const locked = i > save.unlocked, done = !!save.got[ch.id];
     const b = document.createElement('button');
     b.type = 'button';
-    const locked = i > save.unlocked;
-    b.className = 'ch' + (locked ? ' locked' : '') + (i === next ? ' current' : '') + (ch.final ? ' final' : '');
-    b.innerHTML = `<div class="thumb" style="background-image:url(${ch.bg})"></div>
-      <div class="meta"><span class="num">${ch.num}</span><span class="name"></span><span class="sub"></span>
-      ${save.got[ch.id] ? `<span class="got">✓ ${ch.obj.name}</span>` : ''}</div>`;
-    b.querySelector('.name').textContent = ch.name;
-    b.querySelector('.sub').textContent = locked ? 'Bloqueado' : ch.sub;
-    if (!locked) b.addEventListener('click', () => { Sound.tick(); playChapter(i); });
-    else b.disabled = true;
-    list.appendChild(b);
+    b.className = 'node' + (x > 78 ? ' edge-r' : '') + (locked ? ' locked' : '') + (done ? ' done' : '') + (i === next ? ' current' : '') + (ch.final ? ' final' : '');
+    b.style.left = `${x}%`; b.style.top = `${y}%`;
+    b.innerHTML = `${i === next ? '<span class="flag">Jugar</span>' : ''}<span class="disc" style="background-image:url(${ch.bg})"><span class="badge">${done ? '✓' : locked ? '🔒' : i === 0 ? 'P' : ch.final ? '★' : i}</span></span><span class="lbl"></span>`;
+    b.querySelector('.lbl').textContent = ch.name;
+    b.setAttribute('aria-label', `${ch.num}: ${ch.name}${locked ? ' (bloqueado)' : done ? ' (completado)' : ''}`);
+    b.addEventListener('click', () => {
+      Sound.tick();
+      if (locked) { const d = b.querySelector('.disc'); d.classList.remove('nope'); void d.offsetWidth; d.classList.add('nope'); return; }
+      playChapter(i);
+    });
+    box.appendChild(b);
   });
   bg.style.backgroundImage = 'none';
   app.classList.remove('memory');
   refreshStats();
   show('map');
-  const cur = list.querySelector('.current');
-  if (cur) cur.scrollIntoView({ block: 'center' });
+  const cur = box.querySelector('.current') || box.querySelector('.node:not(.locked):last-of-type');
+  const world = $('world');
+  if (cur) requestAnimationFrame(() => { world.scrollTop = cur.offsetTop + 64 - world.clientHeight / 2; });
+}
+function openBag() {
+  Sound.tick();
+  const cells = CHAPTERS.map((c) => `<div class="bag-cell${save.got[c.id] ? '' : ' missing'}"><div class="bi">${objIcon(c.obj.icon)}</div><span>${save.got[c.id] ? c.obj.name : '?'}</span></div>`).join('');
+  return modal(`<span class="kicker">Mochila</span><h3>Lo que encontraste</h3><div class="bag-grid">${cells}</div>`, [['Cerrar', 1]]);
+}
+function openMore() {
+  Sound.tick();
+  let armed = false;
+  return modal(`<span class="kicker">Opciones</span><h3>El mapa de Bernardo</h3><div class="more-list">
+      <button type="button" class="snd" aria-pressed="true">Sonido: sí</button>
+      <button type="button" id="m-install" hidden>Instalar en el celular</button>
+      <button type="button" id="m-unlock">Desbloquear todo (modo prueba)</button>
+      <button type="button" id="m-reset">Borrar progreso</button></div>`, [['Cerrar', 1]], (card) => {
+    syncSoundButtons();
+    card.querySelector('.snd').addEventListener('click', () => { Sound.unlock(); Sound.toggle(); if (!Sound.muted) Sound.music('game'); syncSoundButtons(); });
+    const ins = card.querySelector('#m-install');
+    ins.hidden = standalone() || !(installPrompt || isIOS);
+    ins.addEventListener('click', () => { document.querySelector('#title .install').click(); });
+    card.querySelector('#m-unlock').addEventListener('click', () => { save.unlocked = CHAPTERS.length - 1; persist(); $('modal').classList.add('off'); renderMap(); });
+    card.querySelector('#m-reset').addEventListener('click', (e) => {
+      if (!armed) { armed = true; e.currentTarget.textContent = 'Tocá de nuevo para borrar todo'; return; }
+      save = fresh(); persist(); $('modal').classList.add('off'); renderMap();
+    });
+  });
 }
 
 /* ===== Diálogos ===== */
+function setScene(src) {
+  const fig = $('scene'), im = $('scene-img');
+  if (!src) { fig.hidden = true; im.removeAttribute('data-src'); return; }
+  if (im.dataset.src === src) return;
+  im.dataset.src = src;
+  fig.hidden = true;
+  im.onload = () => { if (im.dataset.src !== src) return; fig.hidden = false; fig.classList.remove('in'); void fig.offsetWidth; fig.classList.add('in'); };
+  im.onerror = () => { fig.hidden = true; };
+  im.src = src;
+}
 function runDialog(lines) {
   return new Promise((resolve) => {
     if (!lines || !lines.length) return resolve();
@@ -1010,8 +1096,10 @@ function runDialog(lines) {
       $('d-chip').hidden = !L.memory;
       $('d-text').textContent = L.text;
       app.classList.toggle('memory', !!L.memory);
+      if (L.img) setScene(L.img);
     };
-    const finish = () => { cleanup(); app.classList.remove('memory'); resolve(); };
+    setScene(null);
+    const finish = () => { cleanup(); setScene(null); app.classList.remove('memory'); resolve(); };
     const next = () => { Sound.tick(); i++; if (i >= lines.length) finish(); else render(); };
     const onKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next(); } };
     const cleanup = () => { sheet.removeEventListener('click', next); sheet.removeEventListener('keydown', onKey); $('btn-skip').removeEventListener('click', finish); };
@@ -1131,7 +1219,12 @@ function openShop() { Sound.tick(); renderShop(); refreshStats(); show('shop'); 
 
 /* ===== Premio del día ===== */
 async function openDaily() {
-  if (save.daily === today()) return;
+  if (save.daily === today()) {
+    const mid = new Date(); mid.setHours(24, 0, 0, 0);
+    const h = Math.floor((mid - Date.now()) / 3600000), m = Math.ceil(((mid - Date.now()) % 3600000) / 60000);
+    await modal(`<span class="kicker">Premio del día</span><div class="icon"><img src="img/ui_cofre.png" alt=""></div><h3>Ya abriste el cofre de hoy</h3><p>El próximo se abre en ${h > 0 ? `${h} h ` : ''}${m} min.</p>`, [['Entendido', 1]]);
+    return;
+  }
   const pool = [{ coins: 50 }, { coins: 80 }, { coins: 120 }, { coins: 200 }, { inv: 'zonda' }, { inv: 'volcan' }, { inv: 'llave' }, { inv: 'pala' }, { inv: 'guante' }, { inv: 'tijera' }, { life: 1 }];
   let r = pool[Math.floor(Math.random() * pool.length)];
   syncLives();
@@ -1311,6 +1404,117 @@ async function endLevel(ch, won, info) {
     [['Reintentar', 'retry'], ['Volver al mapa', 'map', 1]]);
   if (v2 === 'retry') beginLevel(ch); else renderMap();
 }
+
+/* ===== Efectos grandes, por encima de toda la pantalla ===== */
+const FX = (() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const NAMES = { h: 'Zonda', v: 'Zonda', c: 'Cóndor', o: 'Volcán', b: '¡La Llave!' };
+  const layer = () => $('fx');
+  function cell(r, c) {
+    const cv = document.querySelector('#board canvas');
+    const rc = cv.getBoundingClientRect(), ar = app.getBoundingClientRect();
+    const w = rc.width / COLS, h = rc.height / ROWS;
+    return { x: rc.left - ar.left + (c + 0.5) * w, y: rc.top - ar.top + (r + 0.5) * h, size: w, board: rc, app: ar };
+  }
+  function make(tag, cls, x, y, w, h, src) {
+    const e = document.createElement(tag);
+    e.className = cls;
+    if (src) { e.src = src; e.alt = ''; }
+    Object.assign(e.style, { left: `${x - w / 2}px`, top: `${y - h / 2}px`, width: `${w}px`, height: `${h}px` });
+    layer().appendChild(e);
+    return e;
+  }
+  const run = (e, frames, opts) => e.animate(frames, { fill: 'forwards', ...opts }).finished.catch(() => {}).then(() => e.remove());
+  function glow(x, y, size, kind, dur) {
+    const g = make('div', `fx-glow ${kind || ''}`, x, y, size, size);
+    return run(g, [{ transform: 'scale(.2)', opacity: 0 }, { transform: 'scale(1)', opacity: 1, offset: 0.3 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: dur || 700, easing: 'ease-out' });
+  }
+  function shake(power) {
+    const el = $('game'), d = power || 8;
+    el.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${-d}px,${d / 2}px)` }, { transform: `translate(${d}px,${-d / 2}px)` }, { transform: `translate(${-d / 2}px,${-d}px)` }, { transform: `translate(${d / 2}px,${d / 2}px)` }, { transform: 'translate(0,0)' }], { duration: 380, easing: 'ease-out' });
+  }
+  return {
+    get on() { return !reduce && !!document.querySelector('#board canvas'); },
+    // booster recién armado: zoom grande que se sale del tablero y vuelve a su casilla
+    born(r, c, s) {
+      const p = cell(r, c), size = p.size * 1.15;
+      glow(p.x, p.y, p.size * 4.2, s === 'o' ? 'hot' : s === 'c' ? 'cool' : '', 800);
+      const im = make('img', 'fx-img', p.x, p.y, size, size, SPECIAL_IMG[s]);
+      const rot = s === 'v' ? 90 : 0;
+      run(im, [
+        { transform: `scale(.3) rotate(${rot - 25}deg)`, opacity: 0, easing: 'cubic-bezier(.2,1.4,.4,1)' },
+        { transform: `scale(3.2) rotate(${rot + 8}deg)`, opacity: 1, offset: 0.28, easing: 'ease-in-out' },
+        { transform: `scale(2.9) rotate(${rot - 5}deg)`, opacity: 1, offset: 0.62, easing: 'cubic-bezier(.6,0,.4,1)' },
+        { transform: `scale(1) rotate(${rot}deg)`, opacity: 1, offset: 0.92 },
+        { transform: `scale(1) rotate(${rot}deg)`, opacity: 0 },
+      ], { duration: 1050, easing: 'linear' });
+      const lbl = make('div', 'fx-label', p.x, Math.max(40, p.y - p.size * 1.9), 0, 0);
+      lbl.textContent = NAMES[s] || '';
+      run(lbl, [{ transform: 'translate(-50%,-30%) scale(.6)', opacity: 0 }, { transform: 'translate(-50%,-50%) scale(1.1)', opacity: 1, offset: 0.3 }, { transform: 'translate(-50%,-60%) scale(1)', opacity: 1, offset: 0.75 }, { transform: 'translate(-50%,-80%) scale(1)', opacity: 0 }], { duration: 1000, easing: 'ease-out' });
+    },
+    // ráfaga de Zonda que cruza toda la pantalla
+    gust(r, c, vertical) {
+      const p = cell(r, c), size = p.size * 2.6;
+      const W = p.app.width, H = p.app.height;
+      for (const dir of [-1, 1]) {
+        const im = make('img', 'fx-img', p.x, p.y, size, size, SPECIAL_IMG.h);
+        const dist = vertical ? (dir < 0 ? -(p.y + size) : H - p.y + size) : (dir < 0 ? -(p.x + size) : W - p.x + size);
+        const rot = vertical ? 90 : 0, flip = dir < 0 && !vertical ? -1 : 1;
+        const t = (d) => (vertical ? `translateY(${d}px)` : `translateX(${d}px)`);
+        run(im, [{ transform: `${t(0)} rotate(${rot}deg) scale(${0.5 * flip},.5)`, opacity: 0.2 }, { transform: `${t(dist * 0.3)} rotate(${rot}deg) scale(${1.2 * flip},1.2)`, opacity: 1, offset: 0.3 }, { transform: `${t(dist)} rotate(${rot}deg) scale(${1.5 * flip},1.5)`, opacity: 0.9 }], { duration: 520, easing: 'cubic-bezier(.4,0,.6,1)' });
+      }
+      glow(p.x, p.y, p.size * 3, '', 500);
+    },
+    // Volcán: erupción grande, chispas y temblor de toda la pantalla
+    volcano(r, c, big) {
+      const p = cell(r, c), size = p.size * (big ? 1.6 : 1.2);
+      const fl = document.createElement('div');
+      fl.className = 'fx-flash';
+      fl.style.background = `radial-gradient(circle at ${p.x}px ${p.y}px, rgba(255,230,160,.85), rgba(255,120,40,.45) ${big ? 260 : 170}px, rgba(255,80,0,0) ${big ? 520 : 360}px)`;
+      layer().appendChild(fl);
+      run(fl, [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 0 }], { duration: 700, easing: 'ease-out' });
+      const im = make('img', 'fx-img', p.x, p.y, size, size, SPECIAL_IMG.o);
+      run(im, [{ transform: 'scale(.6)', opacity: 1 }, { transform: 'scale(2.9) translateY(-8%)', opacity: 1, offset: 0.35 }, { transform: 'scale(3.3) translateY(-10%)', opacity: 0 }], { duration: 650, easing: 'ease-out' });
+      const n = big ? 22 : 14;
+      for (let i = 0; i < n; i++) {
+        const a = (Math.PI * 2 * i) / n + Math.random() * 0.4, d = p.size * (2.2 + Math.random() * (big ? 3.5 : 2.2)), es = p.size * (0.25 + Math.random() * 0.3);
+        const e = make('div', 'fx-ember', p.x, p.y, es, es);
+        run(e, [{ transform: 'translate(0,0) scale(1)', opacity: 1 }, { transform: `translate(${Math.cos(a) * d}px,${Math.sin(a) * d - p.size}px) scale(.4)`, opacity: 0 }], { duration: 600 + Math.random() * 400, easing: 'cubic-bezier(.1,.7,.4,1)' });
+      }
+      shake(big ? 14 : 9);
+    },
+    // Llave: aparece enorme, gira y suelta rayos dorados
+    key(r, c, all) {
+      const p = cell(r, c), cx = all ? p.board.left - p.app.left + p.board.width / 2 : p.x, cy = all ? p.board.top - p.app.top + p.board.height / 2 : p.y;
+      const rays = make('div', 'fx-rays', cx, cy, p.size * 6, p.size * 6);
+      run(rays, [{ transform: 'scale(.2) rotate(0deg)', opacity: 0 }, { transform: 'scale(1) rotate(60deg)', opacity: 1, offset: 0.35 }, { transform: 'scale(1.4) rotate(160deg)', opacity: 0 }], { duration: 1000, easing: 'ease-out' });
+      glow(cx, cy, p.size * 4.5, '', 900);
+      const im = make('img', 'fx-img', cx, cy, p.size * 1.2, p.size * 1.2, SPECIAL_IMG.b);
+      const dx = cx - p.x, dy = cy - p.y;
+      run(im, [{ transform: `translate(${-dx}px,${-dy}px) scale(.6) rotate(-30deg)`, opacity: 1 }, { transform: 'translate(0,0) scale(3) rotate(200deg)', opacity: 1, offset: 0.45 }, { transform: 'translate(0,0) scale(3.2) rotate(360deg)', opacity: 1, offset: 0.75 }, { transform: 'translate(0,0) scale(4) rotate(380deg)', opacity: 0 }], { duration: 1000, easing: 'cubic-bezier(.3,.7,.3,1)' });
+      if (all) shake(12);
+    },
+    // Cóndor: despega enorme, se sale de la pantalla y baja en picada sobre la ficha
+    condor(from, to, carry) {
+      const a = cell(from[0], from[1]), b = cell(to[0], to[1]);
+      const size = a.size * 3.4;
+      const wrap = make('div', 'fx-condor', a.x, a.y, size, size);
+      wrap.innerHTML = `<img src="${SPECIAL_IMG.c}" alt="">${carry ? `<img class="carry" src="${SPECIAL_IMG[carry]}" alt="">` : ''}`;
+      const left = b.x < a.x, flip = left ? -1 : 1;
+      const apexX = (a.x + b.x) / 2 + flip * a.size * 1.5, apexY = -size * 0.35;
+      const dx1 = apexX - a.x, dy1 = apexY - a.y, dx2 = b.x - a.x, dy2 = b.y - a.y;
+      glow(a.x, a.y, a.size * 3.2, 'cool', 600);
+      return wrap.animate([
+        { transform: `translate(0,0) scale(${0.35 * flip},.35) rotate(0deg)`, opacity: 0.6, easing: 'ease-out' },
+        { transform: `translate(${dx1 * 0.4}px,${dy1 * 0.55}px) scale(${1.2 * flip},1.2) rotate(${-14 * flip}deg)`, opacity: 1, offset: 0.25, easing: 'ease-in-out' },
+        { transform: `translate(${dx1}px,${dy1}px) scale(${1.5 * flip},1.5) rotate(${-6 * flip}deg)`, opacity: 1, offset: 0.5, easing: 'ease-in' },
+        { transform: `translate(${dx2}px,${dy2 - a.size}px) scale(${1.05 * flip},1.05) rotate(${28 * flip}deg)`, opacity: 1, offset: 0.86, easing: 'ease-out' },
+        { transform: `translate(${dx2}px,${dy2}px) scale(${0.6 * flip},.6) rotate(${36 * flip}deg)`, opacity: 0 },
+      ], { duration: 1150, easing: 'linear', fill: 'forwards' }).finished.catch(() => {}).then(() => { wrap.remove(); glow(b.x, b.y, b.size * 2.6, 'cool', 450); });
+    },
+    shake,
+  };
+})();
 
 /* ===== Tablero (Phaser) ===== */
 const CELL = 96;
@@ -1582,6 +1786,7 @@ class BoardScene extends Phaser.Scene {
     const n = Math.min(this.state.moves, 10);
     if (n <= 0) return;
     toast('¡Jugadas extra!');
+    this.rushing = true;
     const placed = placeSpecials(this.g, Array(n).fill('zonda'), this.rand);
     for (const o of placed) {
       this.setPieceTex(o.r, o.c);
@@ -1594,6 +1799,7 @@ class BoardScene extends Phaser.Scene {
     this.state.moves = 0; this.cfg.onUpdate(this.state);
     await this.wait(250);
     await this.cascade(activateAt(this.g, placed.map((o) => [o.r, o.c]), this.ctx()), null);
+    this.rushing = false;
   }
 
   blast(t) {
@@ -1601,16 +1807,20 @@ class BoardScene extends Phaser.Scene {
     const row = (r) => { if (r >= 0 && r < ROWS) { g.fillStyle(0xfff3c8, 0.8); g.fillRoundedRect(0, r * CELL + CELL * 0.28, W, CELL * 0.44, 14); } };
     const col = (c) => { if (c >= 0 && c < COLS) { g.fillStyle(0xfff3c8, 0.8); g.fillRoundedRect(c * CELL + CELL * 0.28, 0, CELL * 0.44, H, 14); } };
     const [x, y] = this.xy(t.r, t.c);
-    if (t.s === 'h') { row(t.r); this.windFly(x, y, 0); }
-    else if (t.s === 'v') { col(t.c); this.windFly(x, y, 1); }
-    else if (t.s === 'x') { row(t.r); col(t.c); this.windFly(x, y, 0); this.windFly(x, y, 1); }
-    else if (t.s === 'xo') { for (let d = -1; d <= 1; d++) { row(t.r + d); col(t.c + d); } this.cameras.main.shake(220, 0.01); }
+    const big = FX.on && this.bigFx > 0;
+    if (big && t.s !== 'b') this.bigFx--;
+    const wind = (v) => (big ? FX.gust(t.r, t.c, v) : this.windFly(x, y, v));
+    if (t.s === 'h') { row(t.r); wind(0); }
+    else if (t.s === 'v') { col(t.c); wind(1); }
+    else if (t.s === 'x') { row(t.r); col(t.c); wind(0); wind(1); }
+    else if (t.s === 'xo') { for (let d = -1; d <= 1; d++) { row(t.r + d); col(t.c + d); } wind(0); wind(1); if (big) FX.volcano(t.r, t.c, false); else this.cameras.main.shake(220, 0.01); }
     else if (t.s === 'o' || t.s === 'o2') {
       const R = (t.s === 'o' ? 2.6 : 3.8) * CELL;
       g.fillStyle(0xff8a2a, 0.45); g.fillCircle(x, y, R);
       g.fillStyle(0xffd27a, 0.6); g.fillCircle(x, y, R * 0.55);
-      this.cameras.main.shake(260, t.s === 'o' ? 0.012 : 0.02);
-    } else if (t.s === 'all') { g.fillStyle(0xf2b632, 0.45); g.fillRect(0, 0, W, H); this.cameras.main.shake(300, 0.015); }
+      if (big) FX.volcano(t.r, t.c, t.s === 'o2'); else this.cameras.main.shake(260, t.s === 'o' ? 0.012 : 0.02);
+    } else if (t.s === 'all') { g.fillStyle(0xf2b632, 0.45); g.fillRect(0, 0, W, H); if (big) FX.key(t.r, t.c, true); else this.cameras.main.shake(300, 0.015); }
+    else if (t.s === 'b' && FX.on) FX.key(t.r, t.c, false);
   }
   windFly(x, y, vertical) {
     const W = COLS * CELL, H = ROWS * CELL;
@@ -1621,6 +1831,7 @@ class BoardScene extends Phaser.Scene {
     }
   }
   flyCondor(f) {
+    if (FX.on) return FX.condor(f.from, f.to, f.carry).then(() => { if (f.carry) this.blast({ r: f.to[0], c: f.to[1], s: f.carry }); });
     const [fx, fy] = this.xy(...f.from), [tx, ty] = this.xy(...f.to);
     const s = this.add.image(fx, fy, 'sp_c').setDisplaySize(CELL * 1.25, CELL * 1.25).setDepth(8);
     s.setFlipX(tx < fx);
@@ -1665,8 +1876,11 @@ class BoardScene extends Phaser.Scene {
       await this.wait(520);
     }
     this.fx.clear(); this.fx.setAlpha(1);
+    this.bigFx = res.triggered.length > 6 ? 3 : 6;
+    const keyTrig = res.triggered.find((t) => t.s === 'b' || t.s === 'all');
+    if (keyTrig && FX.on) { this.blast(keyTrig); await this.wait(420); }
     if (!res.converted.length) this.drawBeams(res.beams);
-    res.triggered.forEach((t) => { if (t.s !== 'c' && t.s !== 'c3') this.blast(t); });
+    res.triggered.forEach((t) => { if (t !== keyTrig && t.s !== 'c' && t.s !== 'c3') this.blast(t); });
     this.tweens.add({ targets: this.fx, alpha: { from: 1, to: 0 }, duration: 420, onComplete: () => { this.fx.clear(); this.fx.setAlpha(1); } });
     if (res.flights.length) await Promise.all(res.flights.map((f) => this.flyCondor(f)));
     const jobs = [];
@@ -1685,6 +1899,10 @@ class BoardScene extends Phaser.Scene {
       jobs.push(this.tween({ targets: s, scale: s.base * 1.3, duration: 140, yoyo: true }));
     }
     await Promise.all(jobs);
+    if (res.created.length && FX.on && !this.rushing) {
+      res.created.slice(0, 2).forEach((o) => FX.born(o.r, o.c, o.piece.s));
+      await this.wait(560);
+    }
   }
 
   async animGravity(grav) {
@@ -1749,15 +1967,11 @@ document.querySelectorAll('[data-shop]').forEach((b) => b.addEventListener('clic
 $('btn-shop-close').addEventListener('click', () => { Sound.tick(); renderMap(); });
 $('btn-daily').addEventListener('click', () => { Sound.tick(); openDaily(); });
 document.querySelectorAll('.tool').forEach((b) => b.addEventListener('click', () => onToolButton(b.dataset.tool)));
-$('btn-unlock').addEventListener('click', () => { save.unlocked = CHAPTERS.length - 1; persist(); renderMap(); });
+$('btn-more').addEventListener('click', openMore);
+$('btn-bag').addEventListener('click', openBag);
 document.querySelectorAll('.snd').forEach((b) => b.addEventListener('click', () => { Sound.unlock(); Sound.toggle(); if (!Sound.muted) Sound.music('game'); syncSoundButtons(); }));
 syncSoundButtons();
 setInterval(refreshStats, 1000);
-let resetArmed = false;
-$('btn-reset').addEventListener('click', (e) => {
-  if (!resetArmed) { resetArmed = true; e.target.textContent = 'Tocá de nuevo para borrar todo'; setTimeout(() => { resetArmed = false; e.target.textContent = 'Borrar progreso'; }, 3500); return; }
-  save = fresh(); persist(); resetArmed = false; e.target.textContent = 'Borrar progreso'; renderMap();
-});
 
 /* ===== Instalar como app ===== */
 let installPrompt = null;
