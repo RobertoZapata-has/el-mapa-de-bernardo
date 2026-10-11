@@ -153,6 +153,8 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .fx-glow.hot{background:radial-gradient(circle,rgba(255,240,180,.95),rgba(255,120,40,.6) 40%,rgba(255,80,0,0) 70%)}
 .fx-glow.cool{background:radial-gradient(circle,rgba(235,248,255,.95),rgba(150,205,255,.55) 40%,rgba(150,205,255,0) 70%)}
 .fx-flash{position:absolute;inset:0}
+.fx-ring{position:absolute;border-radius:50%;border:7px solid rgba(255,214,140,.95);box-shadow:0 0 18px rgba(255,150,60,.8),inset 0 0 18px rgba(255,150,60,.6);will-change:transform,opacity}
+.fx-smoke{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(90,80,75,.75),rgba(90,80,75,.35) 45%,rgba(90,80,75,0) 70%);will-change:transform,opacity}
 .fx-ember{border-radius:50%;background:radial-gradient(circle,#fff3b0,#ff9a3a 55%,rgba(255,80,0,0) 72%)}
 .fx-rays{border-radius:50%;background:repeating-conic-gradient(rgba(255,226,140,.85) 0 9deg,rgba(255,226,140,0) 9deg 24deg);-webkit-mask:radial-gradient(circle,#000 25%,transparent 70%);mask:radial-gradient(circle,#000 25%,transparent 70%)}
 .fx-condor img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 16px 18px rgba(0,0,0,.45))}
@@ -832,6 +834,7 @@ const SETS = {
     { name: 'Copo de nieve', img: 'img/t_copo.png' }, { name: 'Flor', img: 'img/t_flor.png' }, { name: 'Rueda', img: 'img/t_rueda.png' },
   ],
 };
+const PIECE_COLOR = { finca: ['#9b4fd0', '#5fb33f', '#45b6f0', '#f59a3c', '#ffd23a', '#d9a35a'], tren: ['#f0c24a', '#e04a3a', '#a86a3c', '#bfe8ff', '#f06aa0', '#c0c6ce'] };
 const SPECIAL_IMG = { h: 'img/b_zonda.png', v: 'img/b_zonda.png', c: 'img/b_condor.png', o: 'img/b_volcan.png', b: 'img/p_llave.png' };
 const GLOW = { h: '255,236,180', v: '255,236,180', c: '175,215,255', o: '255,150,70', b: '255,214,90' };
 const IMG = {};
@@ -1018,6 +1021,8 @@ const Sound = (() => {
     boom() { if (!ok()) return; const t = ctx.currentTime; tone(110, t, 0.5, 'sine', 0.35, 38); noise(t, 0.55, 900, 90, 0.5, 'lowpass'); },
     whoosh() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.4, 300, 1800, 0.22); tone(880, t + 0.32, 0.12, 'triangle', 0.05, 1320); },
     bomb() { if (!ok()) return; const t = ctx.currentTime; for (let i = 0; i < 9; i++) tone(mf(PENTA[i % PENTA.length] + 12), t + i * 0.035, 0.35, 'sine', 0.07); },
+    crack() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.16, 2400, 600, 0.35); tone(140, t, 0.12, 'square', 0.05, 70); },
+    rumble() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.3, 120, 60, 0.4, 'lowpass'); tone(70, t, 0.3, 'sine', 0.2, 50); },
     coin() { if (!ok()) return; const t = ctx.currentTime; tone(mf(95), t, 0.09, 'square', 0.04); tone(mf(100), t + 0.08, 0.22, 'square', 0.04); },
     win() { if (!ok()) return; const t = ctx.currentTime; [57, 64, 69, 72, 76, 81].forEach((m, i) => pluck(m, t + i * 0.09, 0.9)); tone(mf(93), t + 0.6, 1.2, 'sine', 0.06); },
     lose() { if (!ok()) return; const t = ctx.currentTime; tone(392, t, 0.7, 'triangle', 0.09, 180); },
@@ -1706,8 +1711,12 @@ const FX = (() => {
     return run(g, [{ transform: 'scale(.2)', opacity: 0 }, { transform: 'scale(1)', opacity: 1, offset: 0.3 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: dur || 700, easing: 'ease-out' });
   }
   function shake(power) {
-    const el = $('game'), d = power || 8;
-    el.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${-d}px,${d / 2}px)` }, { transform: `translate(${d}px,${-d / 2}px)` }, { transform: `translate(${-d / 2}px,${-d}px)` }, { transform: `translate(${d / 2}px,${d / 2}px)` }, { transform: 'translate(0,0)' }], { duration: 380, easing: 'ease-out' });
+    const el = $('game'), d = power || 8, frames = [];
+    for (let i = 0; i <= 12; i++) {
+      const k = d * Math.pow(1 - i / 12, 1.6), ang = i * 2.1;
+      frames.push({ transform: `translate(${(Math.cos(ang) * k).toFixed(1)}px,${(Math.sin(ang * 1.3) * k * 0.7).toFixed(1)}px)` });
+    }
+    el.animate(frames, { duration: 560, easing: 'linear' });
   }
   return {
     get on() { return !reduce && !!document.querySelector('#board canvas'); },
@@ -1746,18 +1755,39 @@ const FX = (() => {
       const p = cell(r, c), size = p.size * (big ? 1.6 : 1.2);
       const fl = document.createElement('div');
       fl.className = 'fx-flash';
-      fl.style.background = `radial-gradient(circle at ${p.x}px ${p.y}px, rgba(255,230,160,.85), rgba(255,120,40,.45) ${big ? 260 : 170}px, rgba(255,80,0,0) ${big ? 520 : 360}px)`;
+      fl.style.background = `radial-gradient(circle at ${p.x}px ${p.y}px, rgba(255,240,190,.9), rgba(255,130,40,.5) ${big ? 260 : 170}px, rgba(255,80,0,0) ${big ? 540 : 380}px)`;
       layer().appendChild(fl);
-      run(fl, [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 0 }], { duration: 700, easing: 'ease-out' });
+      run(fl, [{ opacity: 0 }, { opacity: 1, offset: 0.12 }, { opacity: 0.5, offset: 0.4 }, { opacity: 0 }], { duration: 950, easing: 'ease-out' });
+      // ondas expansivas
+      [0, 140].forEach((d, k) => {
+        const R = p.size * (big ? 4.2 : 3);
+        const ring = make('div', 'fx-ring', p.x, p.y, R, R);
+        ring.style.opacity = 0;
+        run(ring, [{ transform: 'scale(.15)', opacity: 1 }, { transform: 'scale(1)', opacity: 0.6, offset: 0.6 }, { transform: `scale(${k ? 1.5 : 1.3})`, opacity: 0 }], { duration: 650, delay: d, easing: 'cubic-bezier(.15,.7,.3,1)' });
+      });
+      // el volcán se infla y revienta
       const im = make('img', 'fx-img', p.x, p.y, size, size, SPECIAL_IMG.o);
-      run(im, [{ transform: 'scale(.6)', opacity: 1 }, { transform: 'scale(2.9) translateY(-8%)', opacity: 1, offset: 0.35 }, { transform: 'scale(3.3) translateY(-10%)', opacity: 0 }], { duration: 650, easing: 'ease-out' });
-      const n = big ? 22 : 14;
+      run(im, [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(.82,1.1)', opacity: 1, offset: 0.1 }, { transform: 'scale(2.6) translateY(-6%)', opacity: 1, offset: 0.34 },
+        { transform: 'scale(2.9) translateY(-8%) rotate(4deg)', opacity: 0.9, offset: 0.6 }, { transform: 'scale(3.6) translateY(-10%) rotate(-2deg)', opacity: 0 }], { duration: 950, easing: 'cubic-bezier(.2,.7,.3,1)' });
+      // lava en arco, con gravedad
+      const n = big ? 24 : 16;
       for (let i = 0; i < n; i++) {
-        const a = (Math.PI * 2 * i) / n + Math.random() * 0.4, d = p.size * (2.2 + Math.random() * (big ? 3.5 : 2.2)), es = p.size * (0.25 + Math.random() * 0.3);
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.7, d = p.size * (1.8 + Math.random() * (big ? 3.4 : 2.4)), es = p.size * (0.22 + Math.random() * 0.3);
+        const dx = Math.cos(a) * d, dy = Math.sin(a) * d, up = p.size * (0.8 + Math.random() * 1.4);
         const e = make('div', 'fx-ember', p.x, p.y, es, es);
-        run(e, [{ transform: 'translate(0,0) scale(1)', opacity: 1 }, { transform: `translate(${Math.cos(a) * d}px,${Math.sin(a) * d - p.size}px) scale(.4)`, opacity: 0 }], { duration: 600 + Math.random() * 400, easing: 'cubic-bezier(.1,.7,.4,1)' });
+        run(e, [{ transform: 'translate(0,0) scale(.6)', opacity: 1, easing: 'cubic-bezier(.2,.8,.4,1)' },
+          { transform: `translate(${dx * 0.55}px,${dy * 0.55 - up}px) scale(1)`, opacity: 1, offset: 0.45, easing: 'cubic-bezier(.5,0,.9,.6)' },
+          { transform: `translate(${dx}px,${dy + p.size * 2.2}px) scale(.5)`, opacity: 0 }], { duration: 850 + Math.random() * 450, delay: 60 + Math.random() * 90 });
       }
-      shake(big ? 14 : 9);
+      // humo que sube
+      for (let i = 0; i < (big ? 7 : 5); i++) {
+        const sz = p.size * (1.4 + Math.random()), ox = (Math.random() - 0.5) * p.size * 1.6;
+        const sm = make('div', 'fx-smoke', p.x + ox, p.y, sz, sz);
+        sm.style.opacity = 0;
+        run(sm, [{ transform: 'translate(0,0) scale(.4)', opacity: 0 }, { transform: `translate(${ox * 0.3}px,${-p.size * 0.6}px) scale(1.1)`, opacity: 0.8, offset: 0.25 },
+          { transform: `translate(${ox * 0.8}px,${-p.size * (1.8 + Math.random())}px) scale(2.2)`, opacity: 0 }], { duration: 1300 + Math.random() * 500, delay: 180 + i * 70, easing: 'ease-out' });
+      }
+      shake(big ? 16 : 11);
     },
     // Llave: aparece enorme, gira y suelta rayos dorados
     key(r, c, all) {
@@ -1809,6 +1839,11 @@ class BoardScene extends Phaser.Scene {
     this.floorG = this.add.graphics().setDepth(1);
     this.sel = this.add.graphics().setDepth(5);
     this.fx = this.add.graphics().setDepth(6);
+    const mk = (key, w, h, draw) => { const t = this.textures.createCanvas(key, w, h); draw(t.getContext()); t.refresh(); };
+    mk('dot', 32, 32, (c) => { const g = c.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, '#fff'); g.addColorStop(0.5, 'rgba(255,255,255,.9)'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(0, 0, 32, 32); });
+    mk('chip', 24, 24, (c) => { c.fillStyle = '#fff'; c.beginPath(); c.moveTo(4, 6); c.lineTo(18, 2); c.lineTo(22, 16); c.lineTo(10, 22); c.lineTo(2, 15); c.closePath(); c.fill(); c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.moveTo(10, 22); c.lineTo(22, 16); c.lineTo(14, 13); c.closePath(); c.fill(); });
+    mk('puff', 64, 64, (c) => { const g = c.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,.85)'); g.addColorStop(0.55, 'rgba(255,255,255,.4)'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(0, 0, 64, 64); });
+    mk('star', 32, 32, (c) => { c.fillStyle = '#fff'; c.beginPath(); for (let i = 0; i < 8; i++) { const a = -Math.PI / 2 + i * Math.PI / 4, r = i % 2 ? 4 : 15; c.lineTo(16 + Math.cos(a) * r, 16 + Math.sin(a) * r); } c.closePath(); c.fill(); });
     const it = this.textures.createCanvas('item', 128, 128);
     const ic = it.getContext(); ic.shadowColor = 'rgba(0,0,0,.45)'; ic.shadowBlur = 8; ic.shadowOffsetY = 5;
     if (IMG['img/ui_cofre.png']) ic.drawImage(IMG['img/ui_cofre.png'], 8, 6, 112, 112);
@@ -2125,7 +2160,6 @@ class BoardScene extends Phaser.Scene {
       const out = applyClear(this.g, res, this.floor);
       await this.animClear(res, combo, out);
       this.state.goals.forEach((g) => { g.got += out.got[g.t] || 0; });
-      if (out.floorHit.length) this.drawFloor();
       this.cfg.onUpdate(this.state);
       await this.animGravity(gravity(this.g, this.rand, this.cfg.types));
       this.spawnItems();
@@ -2235,6 +2269,107 @@ class BoardScene extends Phaser.Scene {
     }
   }
 
+  // Partículas con gravedad (polvo, chispas, pedazos)
+  particles(x, y, o) {
+    const n = o.n || 8;
+    for (let i = 0; i < n; i++) {
+      const a = o.angle !== undefined ? o.angle + (Math.random() - 0.5) * (o.spread || 1) : Math.random() * Math.PI * 2;
+      const sp = (o.speed || 240) * (0.45 + Math.random() * 0.75);
+      const vx = Math.cos(a) * sp, vy = Math.sin(a) * sp - (o.lift || 0);
+      const img = this.add.image(x, y, o.tex || 'dot').setDepth(o.depth || 8);
+      const col = o.colors[Math.floor(Math.random() * o.colors.length)];
+      img.setTint(Phaser.Display.Color.HexStringToColor(col).color);
+      const sc = (o.size || 0.6) * (0.6 + Math.random() * 0.7);
+      img.setScale(sc).setRotation(Math.random() * 6.28);
+      if (o.add) img.setBlendMode(Phaser.BlendModes.ADD);
+      const life = (o.life || 600) * (0.7 + Math.random() * 0.6), g = o.gravity === undefined ? 900 : o.gravity, spin = (Math.random() - 0.5) * (o.spin || 0);
+      this.tweens.addCounter({ from: 0, to: 1, duration: life, delay: o.delay || 0,
+        onUpdate: (tw) => { const t = tw.getValue(), s = (t * life) / 1000; img.x = x + vx * s; img.y = y + vy * s + 0.5 * g * s * s; img.alpha = 1 - t * t; img.rotation += spin; if (o.grow) img.setScale(sc * (1 + t * o.grow)); },
+        onComplete: () => img.destroy() });
+    }
+  }
+  ring(x, y, color, to, delay) {
+    const g = this.add.graphics().setDepth(7);
+    const c = Phaser.Display.Color.HexStringToColor(color).color;
+    this.tweens.addCounter({ from: 0, to: 1, duration: 420, delay: delay || 0, ease: 'Cubic.easeOut',
+      onUpdate: (tw) => { const t = tw.getValue(); g.clear(); g.lineStyle(8 * (1 - t) + 2, c, 1 - t); g.strokeCircle(x, y, CELL * (0.2 + t * to)); },
+      onComplete: () => g.destroy() });
+  }
+  pieceColor(tex) {
+    const m = /^p_(\w+)_(\d)$/.exec(tex);
+    if (!m) return ['#fff3c4', '#f2b632'];
+    return [PIECE_COLOR[m[1]][+m[2]], '#ffffff'];
+  }
+  // Ficha que se junta: crece, gira y se deshace en brillitos
+  popPiece(s, r, c, delay, few) {
+    const [x, y] = this.xy(r, c), cols = this.pieceColor(s.texture.key);
+    return this.tween({ targets: s, scale: s.base * 1.28, angle: (Math.random() - 0.5) * 16, duration: 90, delay, ease: 'Quad.easeOut' }).then(() => {
+      this.particles(x, y, { n: few ? 3 : 7, colors: cols, tex: few ? 'dot' : 'star', speed: 260, size: 0.55, gravity: 500, life: 480, spin: 0.3 });
+      return this.tween({ targets: s, scale: 0, alpha: 0, angle: s.angle * 4, duration: 190, ease: 'Back.easeIn' });
+    }).then(() => s.destroy());
+  }
+  // Ficha alcanzada por una explosión: sale volando desde el centro
+  flyAway(s, r, c, o, delay) {
+    let dx = c - o.c, dy = r - o.r;
+    if (o.s === 'h') { dx = c - o.c || 0.01; dy = -0.35; } else if (o.s === 'v') { dx = 0.35 * (c % 2 ? 1 : -1); dy = r - o.r || 0.01; }
+    const len = Math.hypot(dx, dy) || 1, dist = CELL * (0.8 + Math.random() * 0.8);
+    const [x, y] = this.xy(r, c);
+    s.setDepth(4);
+    const ready = this.wait(delay + 250);
+    this.tween({ targets: s, scale: s.base * 1.2, duration: 70, delay, ease: 'Quad.easeOut' }).then(() => {
+      this.particles(x, y, { n: 3, colors: this.pieceColor(s.texture.key), speed: 200, size: 0.5, gravity: 400, life: 400 });
+      return this.tween({ targets: s, x: s.x + (dx / len) * dist, y: s.y + (dy / len) * dist - CELL * 0.3, angle: (Math.random() < 0.5 ? -1 : 1) * (120 + Math.random() * 160), scale: s.base * 0.35, alpha: 0, duration: 380, ease: 'Cubic.easeOut' });
+    }).then(() => s.destroy());
+    return ready;
+  }
+  // Piedra que se rompe: destello, se parte en pedazos y deja polvo
+  breakRock(s, r, c, delay) {
+    const [x, y] = this.xy(r, c), k = ROCK_SKIN[this.lv.rskin] || ROCK_SKIN.piedra;
+    const cols = this.lv.rskin === 'lava' ? [k.base, k.dark, '#ff7a2a', '#ffb347'] : this.lv.rskin === 'hielo' ? ['#ffffff', k.base, k.light] : [k.base, k.dark, k.light];
+    s.setDepth(4);
+    const ready = this.wait(delay + 200);
+    this.tween({ targets: s, scale: s.base * 1.15, duration: 80, delay, ease: 'Quad.easeOut', onStart: () => s.setTintFill(0xffffff) }).then(() => {
+      s.clearTint();
+      Sound.crack();
+      this.particles(x, y, { n: 12, colors: cols, tex: 'chip', speed: 330, lift: 160, size: 0.9, gravity: 1300, life: 750, spin: 0.35, depth: 9 });
+      this.particles(x, y + CELL * 0.15, { n: 4, colors: this.lv.rskin === 'hielo' ? ['#e9f6ff'] : ['#d8cdbb', '#b9ad98'], tex: 'puff', speed: 60, size: 0.9, gravity: -40, life: 700, grow: 1.4, depth: 8 });
+      if (this.lv.rskin === 'lava') this.particles(x, y, { n: 6, colors: ['#ffcf6a', '#ff7a2a'], speed: 220, lift: 120, size: 0.5, gravity: 700, life: 600, add: true });
+      this.ring(x, y, this.lv.rskin === 'hielo' ? '#e9f6ff' : '#fff3dc', 0.6);
+      return this.tween({ targets: s, scale: s.base * 0.4, alpha: 0, duration: 160, ease: 'Quad.easeIn' });
+    }).then(() => s.destroy());
+    return ready;
+  }
+  // Piedra reforzada que pierde una capa: saltan las cintas y chispas
+  hitRock(r, c) {
+    const s = this.sprites[r][c];
+    const [x, y] = this.xy(r, c), k = ROCK_SKIN[this.lv.rskin] || ROCK_SKIN.piedra;
+    Sound.crack();
+    this.particles(x, y - CELL * 0.1, { n: 4, colors: ['#5a5f66', '#8a8f96'], tex: 'chip', speed: 300, lift: 220, size: 1.3, gravity: 1400, life: 800, spin: 0.4, depth: 9 });
+    this.particles(x, y, { n: 8, colors: ['#ffe28a', '#ffffff'], speed: 320, size: 0.35, gravity: 600, life: 380, add: true });
+    this.particles(x, y, { n: 5, colors: [k.base, k.dark], tex: 'chip', speed: 220, lift: 100, size: 0.6, gravity: 1200, life: 600, spin: 0.3, depth: 9 });
+    if (!s) return;
+    this.tweens.killTweensOf(s); s.setScale(s.base); s.setAngle(0);
+    this.tweens.add({ targets: s, scaleX: s.base * 1.15, scaleY: s.base * 0.88, duration: 70, yoyo: true, ease: 'Quad.easeOut' });
+    this.tweens.add({ targets: s, angle: { from: -7, to: 7 }, duration: 55, yoyo: true, repeat: 2, onComplete: () => s.setAngle(0) });
+  }
+  // Suelo limpio: la baldosa se levanta en polvo
+  scrubFloor(r, c, delay) {
+    const [x, y] = this.xy(r, c), skin = this.lv.fskin, f = FLOOR_SKIN[skin] || FLOOR_SKIN.tierra;
+    const key = `floor_${skin}`;
+    if (!this.textures.exists(key)) {
+      const t = this.textures.createCanvas(key, CELL, CELL), cx = t.getContext();
+      cx.fillStyle = f.color; cx.beginPath(); cx.roundRect ? cx.roundRect(3, 3, CELL - 6, CELL - 6, 14) : cx.rect(3, 3, CELL - 6, CELL - 6); cx.fill();
+      cx.fillStyle = f.dot; [[24, 24], [64, 30], [40, 60], [72, 70]].forEach(([a, b]) => { cx.beginPath(); cx.arc(a, b, 4, 0, Math.PI * 2); cx.fill(); });
+      t.refresh();
+    }
+    const tile = this.add.image(x, y, key).setDepth(1.5);
+    this.tweens.add({ targets: tile, scale: 1.25, alpha: 0, duration: 420, delay, ease: 'Quad.easeOut', onComplete: () => tile.destroy() });
+    this.time.delayedCall(delay, () => {
+      this.particles(x, y, { n: 6, colors: [f.color, f.dot], tex: 'puff', speed: 90, size: 0.55, gravity: -30, life: 650, grow: 1.2, depth: 7 });
+      this.particles(x, y, { n: 5, colors: [f.color, f.dot], tex: 'chip', speed: 200, lift: 120, size: 0.45, gravity: 900, life: 520, spin: 0.3, depth: 7 });
+    });
+  }
+
   async animClear(res, combo, out) {
     Sound.pop(combo);
     const trig = res.triggered.map((t) => t.s);
@@ -2254,6 +2389,14 @@ class BoardScene extends Phaser.Scene {
       await this.wait(520);
     }
     this.fx.clear(); this.fx.setAlpha(1);
+    // anticipación: los boosters que van a explotar se inflan y tiemblan antes
+    const pre = res.triggered.filter((t) => this.sprites[t.r] && this.sprites[t.r][t.c] && t.s !== 'b' && t.s !== 'all').slice(0, 4);
+    if (pre.length && FX.on) {
+      const volc = pre.some((t) => t.s === 'o' || t.s === 'o2' || t.s === 'xo');
+      pre.forEach((t) => { const sp = this.sprites[t.r][t.c]; this.tweens.killTweensOf(sp); sp.setDepth(6); this.tweens.add({ targets: sp, scale: sp.base * (volc ? 1.45 : 1.3), duration: volc ? 260 : 140, ease: 'Sine.easeOut' }); if (volc) this.tweens.add({ targets: sp, angle: { from: -9, to: 9 }, duration: 45, yoyo: true, repeat: 2 }); });
+      if (volc) { Sound.rumble(); this.cameras.main.shake(260, 0.004); }
+      await this.wait(volc ? 280 : 150);
+    }
     this.bigFx = res.triggered.length > 6 ? 3 : 6;
     const keyTrig = res.triggered.find((t) => t.s === 'b' || t.s === 'all');
     if (keyTrig && FX.on) { this.blast(keyTrig); await this.wait(420); }
@@ -2262,18 +2405,25 @@ class BoardScene extends Phaser.Scene {
     this.tweens.add({ targets: this.fx, alpha: { from: 1, to: 0 }, duration: 420, onComplete: () => { this.fx.clear(); this.fx.setAlpha(1); } });
     if (res.flights.length) await Promise.all(res.flights.map((f) => this.flyCondor(f)));
     const jobs = [];
-    for (const k of out.damaged) {
-      const [r, c] = RC(k);
-      this.setPieceTex(r, c);
-      shakeSprite(this, [r, c]);
+    const origins = res.triggered.filter((t) => t.s !== 'c' && t.s !== 'c3');
+    const many = out.removed.length > 18;
+    for (const k of out.damaged) { const [r, c] = RC(k); this.setPieceTex(r, c); this.hitRock(r, c); }
+    if (out.floorHit.length) {
+      this.drawFloor();
+      out.floorHit.forEach((k) => { const [r, c] = RC(k); this.scrubFloor(r, c, 0); });
     }
-    if (out.damaged.length || out.got.rock) Sound.bad();
     for (const k of out.removed) {
       const [r, c] = RC(k);
       const s = this.sprites[r][c];
       this.sprites[r][c] = null;
       if (!s) continue;
-      jobs.push(this.tween({ targets: s, scale: s.base * 1.25, duration: 70 }).then(() => this.tween({ targets: s, scale: 0, alpha: 0, duration: 140, ease: 'Back.easeIn' })).then(() => s.destroy()));
+      this.tweens.killTweensOf(s); s.setScale(s.base); s.setAngle(0);
+      let o = null, d = 0;
+      for (const t of origins) { const dd = t.s === 'h' ? Math.abs(t.c - c) + (t.r === r ? 0 : 9) : t.s === 'v' ? Math.abs(t.r - r) + (t.c === c ? 0 : 9) : Math.hypot(t.r - r, t.c - c); if (!o || dd < d) { o = t; d = dd; } }
+      const delay = o ? Math.min(d, 7) * (o.s === 'h' || o.s === 'v' ? 32 : 45) : 0;
+      if (s.texture.key.startsWith('rock_')) jobs.push(this.breakRock(s, r, c, delay));
+      else if (o && d > 0.1 && FX.on) jobs.push(this.flyAway(s, r, c, o, delay));
+      else jobs.push(this.popPiece(s, r, c, delay, many));
     }
     for (const o of res.created) {
       const s = this.sprites[o.r][o.c];
@@ -2297,15 +2447,19 @@ class BoardScene extends Phaser.Scene {
       this.sprites[m.to[0]][m.to[1]] = m.s;
       if (!m.s) return;
       const d = m.to[0] - m.from[0];
-      jobs.push(this.tween({ targets: m.s, y: this.xy(...m.to)[1], duration: 90 + d * 55, ease: 'Quad.easeIn' }));
+      jobs.push(this.tween({ targets: m.s, y: this.xy(...m.to)[1], duration: 110 + d * 60, ease: 'Cubic.easeIn' }).then(() => this.land(m.s)));
     });
     grav.spawns.forEach((sp) => {
       const s = this.makeSprite(sp.r, sp.c, this.g[sp.r][sp.c], sp.fromRow);
       this.sprites[sp.r][sp.c] = s;
       const d = sp.r - sp.fromRow;
-      jobs.push(this.tween({ targets: s, y: this.xy(sp.r, sp.c)[1], duration: 90 + d * 55, ease: 'Quad.easeIn' }));
+      jobs.push(this.tween({ targets: s, y: this.xy(sp.r, sp.c)[1], duration: 110 + d * 60, ease: 'Cubic.easeIn', delay: (ROWS - 1 - sp.r) * 12 }).then(() => this.land(s)));
     });
     await Promise.all(jobs);
+  }
+  land(s) {
+    if (!s || !s.active) return;
+    this.tweens.add({ targets: s, scaleY: s.base * 0.84, scaleX: s.base * 1.1, duration: 70, yoyo: true, ease: 'Quad.easeOut', onComplete: () => { if (s.active) s.setScale(s.base); } });
   }
 
   async redraw() {
