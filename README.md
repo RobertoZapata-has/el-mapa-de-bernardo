@@ -31,6 +31,16 @@ Se puede instalar en el celular con el botón "Instalar en el celular" de la por
 - El progreso se guarda en el navegador de cada jugador.
 - `manifest.webmanifest`, `sw.js` e `icons/`: lo que hace falta para instalarlo como app y jugar sin conexión. Si cambiás imágenes o el juego, subí la versión en `VERSION` dentro de `sw.js` para que los celulares bajen lo nuevo.
 
+## Niveles
+
+Cada lugar tiene 3 niveles (33 en total):
+
+1. **Juntar fichas.** Empieza con la escena de llegada.
+2. **El obstáculo del lugar:** suelo para limpiar (tierra seca, arena, nieve, polvo, ceniza) o piedras para romper (ladrillos, piedras, hielo, piedras volcánicas; algunas necesitan dos golpes).
+3. **Bajar la cajita de Bernardo** hasta la fila de abajo. Al ganarlo se consigue el objeto del lugar y sigue la historia.
+
+Los niveles están en la constante `LEVELS` dentro de `index.html`.
+
 ## Boosters
 
 | Cómo se arma | Booster | Qué hace |

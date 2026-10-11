@@ -79,6 +79,11 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(44px,13vw,64px);li
 .node .flag{position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);background:var(--malbec);color:var(--cream);font:800 13px var(--body);padding:5px 12px;border-radius:10px;box-shadow:0 3px 0 var(--malbec-deep),inset 0 0 0 1.5px rgba(242,182,50,.6);white-space:nowrap;animation:bob 1.2s ease-in-out infinite}
 .node .flag::after{content:"";position:absolute;top:100%;left:50%;margin-left:-6px;border:6px solid transparent;border-top-color:var(--malbec)}
 .node.final .disc{width:66px;height:66px}
+.pips{display:flex;gap:3px;margin-top:-2px}
+.pips i{width:9px;height:9px;border-radius:50%;background:rgba(30,20,14,.85);box-shadow:inset 0 0 0 1.5px rgba(255,236,200,.6)}
+.pips i.on{background:var(--gold);box-shadow:0 0 6px rgba(242,182,50,.8)}
+.pre-text{font-size:14px!important;color:var(--cream)!important;margin-top:-4px!important}
+.lvl-pick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
 .node.edge-r .flag{left:auto;right:-6px;transform:none}
 .node.edge-r .flag::after{left:auto;right:18px}
 .node.edge-r .lbl{transform:translateX(-18%)}
@@ -271,7 +276,7 @@ button.pill{appearance:none;cursor:pointer}
       </div>
     </div>
     <nav class="hub-nav" aria-label="Menú">
-      <button class="nav-b" type="button" data-shop><img src="img/ui_bolsa.png" alt=""><span>Mercado</span></button>
+      <button class="nav-b" type="button" data-shop><img src="img/ui_mercado.png" alt=""><span>Mercado</span></button>
       <button class="nav-b" id="btn-bag" type="button"><span class="nav-ico" id="bag-ico"></span><span>Mochila</span><b class="nav-count" id="bag-count">0</b></button>
       <button class="nav-b" id="btn-daily" type="button"><img src="img/ui_cofre.png" alt=""><span>Premio</span><i class="dot" id="daily-dot" hidden></i></button>
     </nav>
@@ -347,6 +352,9 @@ const RC = (k) => [Math.floor(k / COLS), k % COLS];
 //  o      Volcán: explota alrededor
 //  b      Llave: se lleva todas las fichas de un color
 // Efectos internos de los combos: x (fila+columna), xo (3 filas+3 columnas), o2 (volcán grande), c3 (tres cóndores)
+// Obstáculos: piedra (t = -2, con vida hp) y la cajita que hay que bajar (t = -3).
+// El suelo (tierra seca, nieve, ceniza...) va en una grilla aparte: floor[r][c] = capas que faltan limpiar.
+const ROCK = -2, ITEM = -3;
 const isSpecial = (p) => !!(p && p.s);
 
 function findRuns(g) {
@@ -426,8 +434,9 @@ function pickTarget(g, r, c, ctx, taken) {
     const k = K(rr, cc);
     if ((rr === r && cc === c) || taken.has(k)) continue;
     const q = g[rr][cc];
-    if (!q) continue;
-    if (q.t >= 0 && ctx.prefer && ctx.prefer.has(q.t)) pref.push(k); else any.push(k);
+    if (!q || q.t === ITEM) continue;
+    const wanted = (q.t >= 0 && ctx.prefer && ctx.prefer.has(q.t)) || (ctx.rock && q.t === ROCK) || (ctx.floor && ctx.floor[rr][cc] > 0);
+    if (wanted) pref.push(k); else any.push(k);
   }
   const list = pref.length ? pref : any;
   if (!list.length) return null;
@@ -534,6 +543,15 @@ function resolveStep(g, swapPos, ctx) {
       created.push({ r: pos[0], c: pos[1], piece: { t: -1, s: special } });
     }
   }
+  const hits = [];
+  for (const G of groups) G.cells.forEach((k) => {
+    const [r, c] = RC(k);
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const rr = r + dr, cc = c + dc;
+      if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS && g[rr][cc] && g[rr][cc].t === ROCK) hits.push(K(rr, cc));
+    }
+  });
+  hits.forEach((k) => clear.add(k));
   const keep = new Set(created.map((o) => K(o.r, o.c)));
   const fx = expandSpecials(g, clear, keep, ctx);
   created.forEach((o) => clear.delete(K(o.r, o.c)));
@@ -558,7 +576,7 @@ function activateSwap(g, a, b, ctx) {
     const pos = pa.s ? a : b;
     const other = pa.s ? pb : pa;
     const p = g[pos[0]][pos[1]];
-    if (p.s === 'b') p.color = other.t;
+    if (p.s === 'b' && other.t >= 0) p.color = other.t;
     return activateAt(g, [pos], ctx);
   }
   const center = b;
@@ -605,16 +623,63 @@ function activateSwap(g, a, b, ctx) {
   return pack(clear, [], fx);
 }
 
-function applyClear(g, res) {
-  const got = {};
+function applyClear(g, res, floor) {
+  const got = {}, removed = [], damaged = [], floorHit = [];
+  const add = (key) => { got[key] = (got[key] || 0) + 1; };
+  const scrub = (r, c) => { if (floor && floor[r][c] > 0) { floor[r][c]--; add('floor'); floorHit.push(K(r, c)); } };
   for (const k of res.clear) {
     const [r, c] = RC(k);
     const p = g[r][c];
-    if (p && p.t >= 0) got[p.t] = (got[p.t] || 0) + 1;
+    if (!p || p.t === ITEM) continue;
+    if (p.t === ROCK) {
+      p.hp--;
+      if (p.hp > 0) { damaged.push(k); continue; }
+      add('rock');
+    } else if (p.t >= 0) add(p.t);
+    scrub(r, c);
     g[r][c] = null;
+    removed.push(k);
   }
-  for (const o of res.created) g[o.r][o.c] = o.piece;
-  return got;
+  for (const o of res.created) { g[o.r][o.c] = o.piece; scrub(o.r, o.c); }
+  return { got, removed, damaged, floorHit };
+}
+
+// La cajita que llegó a la fila de abajo se cobra
+function collectDrops(g) {
+  const out = [];
+  for (let c = 0; c < COLS; c++) if (g[ROWS - 1][c] && g[ROWS - 1][c].t === ITEM) { out.push([ROWS - 1, c]); g[ROWS - 1][c] = null; }
+  return out;
+}
+
+// Ubica piedras, suelo y cajitas al empezar un nivel (en espejo, para que se vea prolijo)
+function pickCells(spec, rand, avoid) {
+  const [r0, r1] = spec.rows || [0, ROWS - 1];
+  const half = [];
+  for (let r = r0; r <= r1; r++) for (let c = 0; c <= 3; c++) half.push([r, c]);
+  for (let i = half.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [half[i], half[j]] = [half[j], half[i]]; }
+  const out = [], seen = new Set();
+  for (const [r, c] of half) {
+    if (out.length >= spec.n) break;
+    for (const cc of c === 3 ? [3] : [c, COLS - 1 - c]) {
+      const k = K(r, cc);
+      if (out.length < spec.n && !seen.has(k) && !(avoid && avoid.has(k))) { seen.add(k); out.push([r, cc]); }
+    }
+  }
+  return out;
+}
+function setupObstacles(g, lv, rand) {
+  const floor = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  if (lv.floor) pickCells(lv.floor, rand).forEach(([r, c]) => { floor[r][c] = lv.floor.hp || 1; });
+  const used = new Set();
+  if (lv.rocks) pickCells(lv.rocks, rand).forEach(([r, c]) => { g[r][c] = { t: ROCK, hp: lv.rocks.hp || 1 }; used.add(K(r, c)); });
+  if (lv.drop) {
+    const cols = [1, 2, 3, 4, 5].filter((c) => !used.has(K(0, c)));
+    for (let i = 0; i < Math.min(lv.drop.start || 1, cols.length); i++) {
+      const c = cols.splice(Math.floor(rand() * cols.length), 1)[0];
+      g[0][c] = { t: ITEM };
+    }
+  }
+  return floor;
 }
 
 function gravity(g, rand, types) {
@@ -636,6 +701,7 @@ function gravity(g, rand, types) {
   return { moves, spawns };
 }
 
+const movable = (p) => p && p.t !== ROCK;
 function swapCells(g, a, b) { const t = g[a[0]][a[1]]; g[a[0]][a[1]] = g[b[0]][b[1]]; g[b[0]][b[1]] = t; }
 
 function findMove(g) {
@@ -643,6 +709,7 @@ function findMove(g) {
     for (const [dr, dc] of [[0, 1], [1, 0]]) {
       const r2 = r + dr, c2 = c + dc;
       if (r2 >= ROWS || c2 >= COLS) continue;
+      if (!movable(g[r][c]) || !movable(g[r2][c2])) continue;
       if (g[r][c].s || g[r2][c2].s) return [[r, c], [r2, c2]];
       swapCells(g, [r, c], [r2, c2]);
       const ok = hasMatch(g);
@@ -675,12 +742,11 @@ function newGrid(rand, types) {
 }
 
 function reshuffle(g, rand) {
-  const pieces = [];
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) pieces.push(g[r][c]);
+  const pos = [], pieces = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (g[r][c].t >= -1) { pos.push([r, c]); pieces.push(g[r][c]); }
   for (let tries = 0; tries < 300; tries++) {
     for (let i = pieces.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pieces[i], pieces[j]] = [pieces[j], pieces[i]]; }
-    let i = 0;
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) g[r][c] = pieces[i++];
+    pos.forEach(([r, c], i) => { g[r][c] = pieces[i]; });
     if (!hasMatch(g) && findMove(g)) return true;
   }
   return false;
@@ -689,7 +755,7 @@ function reshuffle(g, rand) {
 // Pone boosters en celdas al azar (para los boosters de antes de jugar y las jugadas extra)
 function placeSpecials(g, list, rand) {
   const free = [];
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (g[r][c] && !g[r][c].s) free.push([r, c]);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (g[r][c] && g[r][c].t >= 0) free.push([r, c]);
   const out = [];
   for (const s of list) {
     if (!free.length) break;
@@ -701,7 +767,7 @@ function placeSpecials(g, list, rand) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { COLS, ROWS, K, RC, findRuns, findSquares, hasMatch, findGroups, resolveStep, activateAt, activateSwap, applyClear, gravity, swapCells, findMove, newGrid, reshuffle, placeSpecials, mostCommonColor };
+if (typeof module !== 'undefined') module.exports = { ROCK, ITEM, collectDrops, setupObstacles, movable, COLS, ROWS, K, RC, findRuns, findSquares, hasMatch, findGroups, resolveStep, activateAt, activateSwap, applyClear, gravity, swapCells, findMove, newGrid, reshuffle, placeSpecials, mostCommonColor };
 </script>
 
 <script>
@@ -722,7 +788,79 @@ const IMG = {};
 function loadImg(src) {
   return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; IMG[src] = im; });
 }
-const imagesReady = Promise.all([...Object.values(SETS).flat().map((p) => p.img), ...new Set(Object.values(SPECIAL_IMG))].map(loadImg));
+const imagesReady = Promise.all([...Object.values(SETS).flat().map((p) => p.img), ...new Set(Object.values(SPECIAL_IMG)), 'img/ui_cofre.png'].map(loadImg));
+
+/* ===== 3 niveles por lugar ===== */
+// Nivel 1: juntar fichas. Nivel 2: obstáculo del lugar. Nivel 3: bajar la cajita de Bernardo.
+const LEVELS = {"prologo":[{"moves":14,"types":5,"goals":[[2,14],[1,14]]},{"moves":16,"types":5,"goals":[["floor",16]],"floor":{"rows":[4,7],"n":16,"hp":1},"fskin":"polvo"},{"moves":18,"types":5,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"finca":[{"moves":16,"types":5,"goals":[[0,20],[2,18]]},{"moves":16,"types":5,"goals":[["floor",24]],"floor":{"rows":[3,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":20,"types":5,"goals":[["drop",2],[0,10]],"drop":{"n":2,"start":1}}],"ruinas":[{"moves":17,"types":5,"goals":[[3,22],[4,22]]},{"moves":17,"types":5,"goals":[["rock",12],[3,16]],"rocks":{"rows":[3,6],"n":12,"hp":1},"rskin":"ladrillo"},{"moves":18,"types":5,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[5,7],"n":8,"hp":1},"rskin":"ladrillo"}],"cerro":[{"moves":21,"types":6,"goals":[[1,20],[5,18]]},{"moves":21,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"villavicencio":[{"moves":20,"types":6,"goals":[[5,18],[0,18],[3,14]]},{"moves":22,"types":6,"goals":[["rock",12],[5,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"piedra"},{"moves":25,"types":6,"goals":[["drop",2],["floor",10]],"drop":{"n":2,"start":1},"floor":{"rows":[6,7],"n":10,"hp":1},"fskin":"tierra"}],"potrerillos":[{"moves":23,"types":6,"goals":[[2,26],[4,16]]},{"moves":22,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":25,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"puente":[{"moves":22,"types":6,"goals":[[0,22],[2,22],[1,14]]},{"moves":22,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"nieve"},{"moves":26,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[3,5],"n":6,"hp":1},"rskin":"hielo"}],"cristo":[{"moves":22,"types":6,"goals":[[3,24],[5,24]]},{"moves":26,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"hielo"},{"moves":25,"types":6,"goals":[["drop",3],["floor",12]],"drop":{"n":3,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"uco":[{"moves":24,"types":6,"goals":[[0,30],[1,20]]},{"moves":24,"types":6,"goals":[["floor",26],[0,12]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"tierra"},{"moves":26,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"atuel":[{"moves":24,"types":6,"goals":[[3,24],[4,24],[5,18]]},{"moves":27,"types":6,"goals":[["rock",12]],"rocks":{"rows":[2,7],"n":12,"hp":2},"rskin":"piedra"},{"moves":27,"types":6,"goals":[["drop",2],["floor",14]],"drop":{"n":2,"start":1},"floor":{"rows":[4,7],"n":14,"hp":1},"fskin":"arena"}],"payunia":[{"moves":25,"types":6,"goals":[[0,26],[3,26],[5,22]]},{"moves":27,"types":6,"goals":[["rock",10],["floor",18]],"rocks":{"rows":[2,5],"n":10,"hp":2},"rskin":"lava","floor":{"rows":[3,7],"n":18,"hp":1},"fskin":"ceniza"},{"moves":30,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[4,7],"n":6,"hp":1},"rskin":"lava"}]};
+const FLOOR_SKIN = {
+  tierra: { name: 'tierra seca', color: '#8a5a34', dot: '#5e3a1e' }, nieve: { name: 'nieve', color: '#eef6ff', dot: '#b9d4ec' },
+  arena: { name: 'arena', color: '#e2c48a', dot: '#b8955a' }, polvo: { name: 'polvo', color: '#c9b38a', dot: '#9c8460' },
+  ceniza: { name: 'ceniza', color: '#5a5450', dot: '#2e2a28' },
+};
+const ROCK_SKIN = {
+  piedra: { name: 'piedras', base: '#9a9184', dark: '#5f5850', light: '#cfc7b8' },
+  ladrillo: { name: 'ladrillos', base: '#b5563a', dark: '#7a3020', light: '#e08a68' },
+  hielo: { name: 'bloques de hielo', base: '#a9dcf2', dark: '#5fa7cc', light: '#f2fbff' },
+  lava: { name: 'piedras volcánicas', base: '#3a302c', dark: '#1c1614', light: '#ff8a3a' },
+};
+function drawRock(ctx, skin, hp) {
+  const k = ROCK_SKIN[skin] || ROCK_SKIN.piedra;
+  ctx.clearRect(0, 0, 128, 128);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 5;
+  const gr = ctx.createLinearGradient(20, 14, 108, 116);
+  gr.addColorStop(0, k.light); gr.addColorStop(0.45, k.base); gr.addColorStop(1, k.dark);
+  ctx.fillStyle = gr;
+  ctx.beginPath();
+  if (skin === 'ladrillo' || skin === 'hielo') { ctx.roundRect ? ctx.roundRect(14, 16, 100, 96, 16) : ctx.rect(14, 16, 100, 96); }
+  else { const pts = [[30, 18], [82, 12], [112, 44], [106, 96], [66, 116], [22, 100], [12, 56]]; ctx.moveTo(...pts[0]); pts.slice(1).forEach((p) => ctx.lineTo(...p)); ctx.closePath(); }
+  ctx.fill();
+  ctx.restore();
+  ctx.lineWidth = 4; ctx.strokeStyle = k.dark;
+  if (skin === 'ladrillo') { ctx.strokeStyle = 'rgba(255,230,200,.65)'; for (const y of [48, 80]) { ctx.beginPath(); ctx.moveTo(16, y); ctx.lineTo(112, y); ctx.stroke(); } [[64, 18, 48], [40, 48, 80], [88, 48, 80], [64, 80, 110]].forEach(([x, y0, y1]) => { ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); }); }
+  if (skin === 'hielo') { ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.beginPath(); ctx.moveTo(28, 30); ctx.lineTo(60, 26); ctx.lineTo(30, 58); ctx.closePath(); ctx.fill(); }
+  if (skin === 'lava') { ctx.strokeStyle = '#ff7a2a'; ctx.lineWidth = 4; ctx.shadowColor = '#ff7a2a'; ctx.shadowBlur = 10; [[34, 40, 58, 62, 50, 92], [80, 30, 74, 60, 94, 84]].forEach(([a, b, c, d, e, f]) => { ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, d); ctx.lineTo(e, f); ctx.stroke(); }); ctx.shadowBlur = 0; }
+  if (skin === 'piedra') { ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(46, 38, 16, 8, -0.4, 0, Math.PI * 2); ctx.fill(); }
+  if (hp >= 2) {
+    // reforzada: cinta de hierro / doble capa
+    ctx.strokeStyle = skin === 'hielo' ? 'rgba(255,255,255,.9)' : '#3b3530'; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.moveTo(18, 64); ctx.lineTo(110, 64); ctx.stroke();
+    ctx.fillStyle = skin === 'hielo' ? '#ffffff' : '#c9a24a';
+    [[30, 64], [98, 64]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); });
+  } else {
+    ctx.strokeStyle = 'rgba(20,10,5,.55)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(60, 20); ctx.lineTo(54, 52); ctx.lineTo(70, 66); ctx.lineTo(62, 100); ctx.stroke();
+  }
+}
+const iconCache = {};
+function rockIcon(skin) { const k = 'r' + skin; if (!iconCache[k]) { const cv = document.createElement('canvas'); cv.width = cv.height = 128; drawRock(cv.getContext('2d'), skin, 1); iconCache[k] = cv.toDataURL(); } return iconCache[k]; }
+function floorIcon(skin) {
+  const k = 'f' + skin;
+  if (!iconCache[k]) {
+    const f = FLOOR_SKIN[skin] || FLOOR_SKIN.tierra, cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const ctx = cv.getContext('2d'); ctx.fillStyle = f.color; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(10, 10, 108, 108, 22) : ctx.rect(10, 10, 108, 108); ctx.fill();
+    ctx.fillStyle = f.dot; [[34, 36], [80, 30], [60, 64], [30, 90], [92, 86], [70, 100]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); });
+    ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 4; ctx.stroke();
+    iconCache[k] = cv.toDataURL();
+  }
+  return iconCache[k];
+}
+function goalInfo(ch, lv, t) {
+  if (t === 'rock') return { img: rockIcon(lv.rskin), name: ROCK_SKIN[lv.rskin].name };
+  if (t === 'floor') return { img: floorIcon(lv.fskin), name: FLOOR_SKIN[lv.fskin].name };
+  if (t === 'drop') return { img: 'img/ui_cofre.png', name: 'cajitas de Bernardo' };
+  return { img: SETS[ch.set][t].img, name: SETS[ch.set][t].name.toLowerCase() };
+}
+function goalText(ch, lv) {
+  return lv.goals.map(([t, n]) => {
+    const g = goalInfo(ch, lv, t);
+    if (t === 'rock') return `Rompé ${n} ${g.name}`;
+    if (t === 'floor') return `Limpiá ${n} casillas de ${g.name}`;
+    if (t === 'drop') return `Bajá ${n === 1 ? 'la cajita' : `${n} cajitas`} de Bernardo hasta abajo`;
+    return `Juntá ${n}`;
+  }).filter((x) => x !== null).join(' · ');
+}
 
 function drawPiece(ctx, set, t, s) {
   ctx.clearRect(0, 0, 128, 128);
@@ -962,12 +1100,13 @@ const ITEMS = {
 const today = () => new Date().toLocaleDateString('sv');
 
 /* ===== Estado ===== */
-const fresh = () => ({ unlocked: 0, got: {}, coins: 300, lives: MAX_LIVES, livesTs: Date.now(), daily: '',
+const fresh = () => ({ unlocked: 0, got: {}, levels: {}, coins: 300, lives: MAX_LIVES, livesTs: Date.now(), daily: '',
   inv: { zonda: 1, volcan: 1, llave: 1, pala: 2, tijera: 1, guante: 2 } });
 let save = fresh();
 try {
   const s = JSON.parse(localStorage.getItem('mapa-bernardo') || 'null');
-  if (s && typeof s.unlocked === 'number') save = Object.assign(fresh(), s, { inv: Object.assign(fresh().inv, s.inv || {}) });
+  if (s && typeof s.unlocked === 'number') save = Object.assign(fresh(), s, { inv: Object.assign(fresh().inv, s.inv || {}), levels: s.levels || {} });
+  Object.keys(save.got).forEach((k) => { if (save.got[k]) save.levels[k] = 3; });
 } catch (e) {}
 const persist = () => { try { localStorage.setItem('mapa-bernardo', JSON.stringify(save)); } catch (e) {} };
 
@@ -1014,25 +1153,26 @@ const NODES = {
 const BAG_SVG = `<svg viewBox="0 0 64 64"><path d="M20 18c0-8 5-12 12-12s12 4 12 12" fill="none" stroke="#6b3f22" stroke-width="5"/><rect x="10" y="16" width="44" height="42" rx="12" fill="#a8683a"/><rect x="10" y="16" width="44" height="16" rx="10" fill="#8a5230"/><rect x="18" y="36" width="28" height="16" rx="5" fill="#8a5230"/><rect x="29" y="28" width="6" height="10" rx="2" fill="#e6b84a"/></svg>`;
 function renderMap() {
   const got = CHAPTERS.filter((c) => save.got[c.id]);
-  $('bag-ico').innerHTML = BAG_SVG;
+  $('bag-ico').innerHTML = '<img src="img/ui_mochila.png" alt="">';
   $('bag-count').textContent = got.length;
   const box = $('nodes');
   box.innerHTML = '';
-  const next = CHAPTERS.findIndex((c, i) => i <= save.unlocked && !save.got[c.id]);
+  const next = CHAPTERS.findIndex((c, i) => i <= save.unlocked && (save.levels[c.id] || 0) < 3);
   CHAPTERS.forEach((ch, i) => {
     const [x, y] = NODES[ch.id];
+    const lvDone = save.levels[ch.id] || 0;
     const locked = i > save.unlocked, done = !!save.got[ch.id];
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'node' + (x > 78 ? ' edge-r' : '') + (locked ? ' locked' : '') + (done ? ' done' : '') + (i === next ? ' current' : '') + (ch.final ? ' final' : '');
     b.style.left = `${x}%`; b.style.top = `${y}%`;
-    b.innerHTML = `${i === next ? '<span class="flag">Jugar</span>' : ''}<span class="disc" style="background-image:url(${ch.bg})"><span class="badge">${done ? '✓' : locked ? '🔒' : i === 0 ? 'P' : ch.final ? '★' : i}</span></span><span class="lbl"></span>`;
+    b.innerHTML = `${i === next ? '<span class="flag">Jugar</span>' : ''}<span class="disc" style="background-image:url(${ch.bg})"><span class="badge">${done ? '✓' : locked ? '🔒' : i === 0 ? 'P' : ch.final ? '★' : i}</span></span><span class="lbl"></span>${locked ? '' : `<span class="pips">${[0, 1, 2].map((k) => `<i class="${k < lvDone ? 'on' : ''}"></i>`).join('')}</span>`}`;
     b.querySelector('.lbl').textContent = ch.name;
     b.setAttribute('aria-label', `${ch.num}: ${ch.name}${locked ? ' (bloqueado)' : done ? ' (completado)' : ''}`);
     b.addEventListener('click', () => {
       Sound.tick();
       if (locked) { const d = b.querySelector('.disc'); d.classList.remove('nope'); void d.offsetWidth; d.classList.add('nope'); return; }
-      playChapter(i);
+      playPlace(i);
     });
     box.appendChild(b);
   });
@@ -1136,13 +1276,15 @@ const coinTag = (n) => `<span class="price"><img src="img/ui_moneda.png" alt="">
 function shake(el) { el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); }
 
 /* ===== Antes de jugar ===== */
-function goalChips(ch, remaining) {
-  return ch.goals.map(([t, n], k) => `<span class="pre-goal"><img src="${SETS[ch.set][t].img}" alt="${SETS[ch.set][t].name}"><b>${remaining ? remaining[k] : n}</b></span>`).join('');
+function goalChips(ch, lv, remaining) {
+  return lv.goals.map(([t, n], k) => { const g = goalInfo(ch, lv, t); return `<span class="pre-goal"><img src="${g.img}" alt="${g.name}"><b>${remaining ? remaining[k] : n}</b></span>`; }).join('');
 }
-function preLevel(ch) {
+function preLevel(ch, L) {
   const chosen = new Set();
-  const html = `<span class="kicker">${ch.num}</span><h3></h3>
-    <div class="pre-goals">${goalChips(ch)}</div>
+  const lv = LEVELS[ch.id][L];
+  const html = `<span class="kicker">${ch.name} · Nivel ${L + 1} de 3</span><h3></h3>
+    <div class="pre-goals">${goalChips(ch, lv)}</div>
+    <p class="pre-text">${goalText(ch, lv)}</p>
     <p class="pre-label">Ayudas para empezar</p>
     <div class="pre-boosts">${['zonda', 'volcan', 'llave'].map((k) => `<button type="button" class="pre-b" data-k="${k}" aria-pressed="false"><img src="${ITEMS[k].img}" alt=""><span class="pre-name">${ITEMS[k].name}</span><span class="pre-badge"></span></button>`).join('')}</div>
     <div class="pre-lives"></div>`;
@@ -1269,29 +1411,44 @@ function showLetter() {
 
 /* ===== Flujo de un capítulo ===== */
 let current = null;
-async function playChapter(i) {
+async function playPlace(i) {
+  const ch = CHAPTERS[i], done = save.levels[ch.id] || 0;
+  if (done < 3) return playLevel(i, done, false);
+  const v = await modal(`<span class="kicker">${ch.num}</span><h3></h3><p>Elegí qué nivel volver a jugar.</p><div class="lvl-pick"></div>`, [['Cerrar', 'x', 1]], (card) => {
+    card.querySelector('h3').textContent = ch.name;
+    const box = card.querySelector('.lvl-pick');
+    [0, 1, 2].forEach((L) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = `Nivel ${L + 1}`;
+      b.addEventListener('click', () => { $('modal').classList.add('off'); playLevel(i, L, true); });
+      box.appendChild(b);
+    });
+  });
+  return v;
+}
+async function playLevel(i, L, replay) {
   const ch = CHAPTERS[i];
   current = i;
   setBg(ch.bg, ch.memory ? 0.9 : 0.15);
   syncLives();
-  if (save.lives > 0) await runDialog(ch.intro);
-  await beginLevel(ch);
+  if (L === 0 && !replay && save.lives > 0) await runDialog(ch.intro);
+  await beginLevel(ch, L, replay);
 }
-async function beginLevel(ch) {
-  const pre = await preLevel(ch);
+async function beginLevel(ch, L, replay) {
+  const pre = await preLevel(ch, L);
   if (!pre) { renderMap(); return; }
-  startLevel(ch, pre);
+  startLevel(ch, L, pre, replay);
 }
 
 let hudGoals = [];
-function renderHUD(state, set) {
+function renderHUD(state, ch, lv) {
   $('g-moves').textContent = state.moves;
   const box = $('g-goals');
   if (!hudGoals.length || box.childElementCount !== state.goals.length) {
     box.innerHTML = '';
     hudGoals = state.goals.map((g) => {
       const el = document.createElement('div'); el.className = 'goal';
-      el.innerHTML = `<img alt="${SETS[set][g.t].name}" src="${SETS[set][g.t].img}"><span></span>`;
+      const gi = goalInfo(ch, lv, g.t);
+      el.innerHTML = `<img alt="${gi.name}" src="${gi.img}"><span></span>`;
       box.appendChild(el); return el;
     });
   }
@@ -1332,8 +1489,9 @@ async function onToolButton(k) {
   if (v === 'buy' && spend(ITEMS[k].price)) { save.inv[k]++; persist(); refreshStats(); sc.setTool(k); }
 }
 
-async function startLevel(ch, pre) {
-  $('g-title').textContent = `${ch.num} · ${ch.name}`;
+async function startLevel(ch, L, pre, replay) {
+  const lv = LEVELS[ch.id][L];
+  $('g-title').textContent = `${ch.name} · ${L + 1}/3`;
   hudGoals = [];
   show('game');
   setAwake(ch.memory ? 0.9 : 0.15);
@@ -1342,27 +1500,31 @@ async function startLevel(ch, pre) {
   sceneRef = scene;
   game.scale.refresh();
   scene.startLevel({
-    set: ch.set, moves: ch.moves, types: ch.types, goals: ch.goals.map(([t, n]) => ({ t, n, got: 0 })), pre: pre || [],
-    onUpdate: (st) => { renderHUD(st, ch.set); const tot = st.goals.reduce((a, g) => a + g.n, 0), got = st.goals.reduce((a, g) => a + Math.min(g.n, g.got), 0); if (!ch.memory) setAwake(0.15 + 0.85 * got / tot); },
+    set: ch.set, lv, moves: lv.moves, types: lv.types, goals: lv.goals.map(([t, n]) => ({ t, n, got: 0 })), pre: pre || [],
+    onUpdate: (st) => { renderHUD(st, ch, lv); const tot = st.goals.reduce((a, g) => a + g.n, 0), got = st.goals.reduce((a, g) => a + Math.min(g.n, g.got), 0); if (!ch.memory) setAwake(0.15 + 0.85 * got / tot); },
     onCombo: (n) => { if (n === 2) toast('¡Bien!'); else if (n === 3) toast('¡Bárbaro!'); else if (n >= 4) toast('¡Qué genio!'); },
     onTool: () => updateToolbar(),
     onToolUsed: (k) => { save.inv[k] = Math.max(0, save.inv[k] - 1); persist(); updateToolbar(); },
-    onEnd: (won, info) => endLevel(ch, won, info),
+    onEnd: (won, info) => endLevel(ch, L, won, info, replay),
   });
   updateToolbar();
 }
 
-async function endLevel(ch, won, info) {
+async function endLevel(ch, L, won, info, replay) {
   const idx = CHAPTERS.indexOf(ch);
+  const lv = LEVELS[ch.id][L];
   if (won) {
     setAwake(1);
     Sound.win();
     const earned = 25 + 5 * ((info && info.left) || 0);
     addCoins(earned);
     await new Promise((r) => setTimeout(r, 600));
-    const first = !save.got[ch.id];
-    save.got[ch.id] = 1;
-    save.unlocked = Math.min(CHAPTERS.length - 1, Math.max(save.unlocked, idx + 1));
+    save.levels[ch.id] = Math.max(save.levels[ch.id] || 0, L + 1);
+    const first = L === 2 && !save.got[ch.id];
+    if (L === 2) {
+      save.got[ch.id] = 1;
+      save.unlocked = Math.min(CHAPTERS.length - 1, Math.max(save.unlocked, idx + 1));
+    }
     persist();
     app.classList.remove('memory');
     Sound.chime();
@@ -1381,7 +1543,10 @@ async function endLevel(ch, won, info) {
         await modal(`<span class="kicker">Fin</span><div class="icon big">${objIcon('llave')}</div><h3>El mapa de Bernardo</h3><p>En memoria de Bernardo y de Roberto.</p>`, [['Volver al mapa', 1]]);
       }
     } else {
-      await modal(`<span class="kicker">${ch.num}</span><h3>¡Nivel superado!</h3>${reward}`, [['Volver al mapa', 1]]);
+      const canNext = L < 2 && !replay;
+      const v = await modal(`<span class="kicker">${ch.name}</span><h3>¡Nivel ${L + 1} superado!</h3>${reward}${canNext ? `<p>Falta${L === 1 ? '' : 'n'} ${2 - L} nivel${L === 1 ? '' : 'es'} para encontrar lo que dejó Bernardo.</p>` : ''}`,
+        canNext ? [['Siguiente nivel', 'next'], ['Volver al mapa', 'map', 1]] : [['Volver al mapa', 'map']]);
+      if (v === 'next') { beginLevel(ch, L + 1, false); return; }
     }
     renderMap();
     return;
@@ -1390,7 +1555,7 @@ async function endLevel(ch, won, info) {
   Sound.lose();
   const sc = await boardReady;
   const remaining = sc.state.goals.map((g) => Math.max(0, g.n - g.got));
-  const v = await modal(`<span class="kicker">Sin jugadas</span><h3>Casi lo tenías</h3><p>Te falta juntar:</p><div class="pre-goals">${goalChips(ch, remaining)}</div><div class="icon small"><img src="img/ui_jugadas.png" alt=""></div>`,
+  const v = await modal(`<span class="kicker">Sin jugadas</span><h3>Casi lo tenías</h3><p>Te falta:</p><div class="pre-goals">${goalChips(ch, lv, remaining)}</div><div class="icon small"><img src="img/ui_jugadas.png" alt=""></div>`,
     [['+5 jugadas', 'more'], ['Rendirme', 'quit', 1]],
     (card) => {
       const b = card.querySelector('[data-val="more"]');
@@ -1402,7 +1567,12 @@ async function endLevel(ch, won, info) {
   const msg = save.lives > 0 ? `Te ${save.lives === 1 ? 'queda 1 vida' : `quedan ${save.lives} vidas`}.` : `Te quedaste sin vidas. La próxima llega en <b class="lives-timer">${fmtTime(nextLifeIn())}</b>.`;
   const v2 = await modal(`<span class="kicker">Perdiste una vida</span><div class="icon small"><img src="img/ui_corazon.png" alt=""></div><h3>No te rindas</h3><p>${msg}</p>`,
     [['Reintentar', 'retry'], ['Volver al mapa', 'map', 1]]);
-  if (v2 === 'retry') beginLevel(ch); else renderMap();
+  if (v2 === 'retry') beginLevel(ch, L, replay); else renderMap();
+}
+
+function shakeSprite(scene, [r, c]) {
+  const s = scene.sprites[r] && scene.sprites[r][c];
+  if (s) scene.tweens.add({ targets: s, x: s.x + 8, duration: 50, yoyo: true, repeat: 2 });
 }
 
 /* ===== Efectos grandes, por encima de toda la pantalla ===== */
@@ -1530,8 +1700,13 @@ class BoardScene extends Phaser.Scene {
       gfx.fillStyle(0xfff3dc, (r + c) % 2 ? 0.10 : 0.17);
       gfx.fillRoundedRect(c * CELL + 4, r * CELL + 4, CELL - 8, CELL - 8, 14);
     }
+    this.floorG = this.add.graphics().setDepth(1);
     this.sel = this.add.graphics().setDepth(5);
     this.fx = this.add.graphics().setDepth(6);
+    const it = this.textures.createCanvas('item', 128, 128);
+    const ic = it.getContext(); ic.shadowColor = 'rgba(0,0,0,.45)'; ic.shadowBlur = 8; ic.shadowOffsetY = 5;
+    if (IMG['img/ui_cofre.png']) ic.drawImage(IMG['img/ui_cofre.png'], 8, 6, 112, 112);
+    it.refresh();
     this.sprites = [];
     this.set = 'finca';
     this.tool = null;
@@ -1541,7 +1716,58 @@ class BoardScene extends Phaser.Scene {
     resolveBoard(this);
   }
   texKey(set, t, s) { return s ? `sp_${['h', 'v', 'c', 'o', 'b'].includes(s) ? s : 'o'}` : `p_${set}_${t}`; }
-  key(p) { return this.texKey(this.set, p.t, p.s); }
+  key(p) {
+    if (p.t === ROCK) { const k = `rock_${this.lv.rskin}_${p.hp}`; if (!this.textures.exists(k)) { const tx = this.textures.createCanvas(k, 128, 128); drawRock(tx.getContext(), this.lv.rskin, p.hp); tx.refresh(); } return k; }
+    if (p.t === ITEM) return 'item';
+    return this.texKey(this.set, p.t, p.s);
+  }
+  drawFloor() {
+    const g = this.floorG; g.clear();
+    if (!this.floor) return;
+    const f = FLOOR_SKIN[this.lv.fskin] || FLOOR_SKIN.tierra;
+    const col = parseInt(f.color.slice(1), 16), dot = parseInt(f.dot.slice(1), 16);
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const n = this.floor[r][c];
+      if (!n) continue;
+      g.fillStyle(col, n > 1 ? 1 : 0.88); g.fillRoundedRect(c * CELL + 3, r * CELL + 3, CELL - 6, CELL - 6, 14);
+      g.fillStyle(dot, 0.7);
+      for (let i = 0; i < 4; i++) g.fillCircle(c * CELL + 18 + ((r * 7 + c * 13 + i * 23) % 60), r * CELL + 18 + ((r * 11 + c * 5 + i * 31) % 60), 4);
+      if (n > 1) { g.lineStyle(4, dot, 0.9); g.strokeRoundedRect(c * CELL + 8, r * CELL + 8, CELL - 16, CELL - 16, 10); }
+    }
+  }
+  itemsOn() { let n = 0; for (const row of this.g) for (const p of row) if (p && p.t === ITEM) n++; return n; }
+  dropGoal() { return this.state.goals.find((g) => g.t === 'drop'); }
+  spawnItems() {
+    const lv = this.lv, dg = this.dropGoal();
+    if (!lv.drop || !dg) return;
+    let on = this.itemsOn(), need = lv.drop.n - dg.got - on;
+    while (need > 0 && on < (lv.drop.max || 2)) {
+      const cols = [...Array(COLS).keys()].filter((c) => this.g[0][c] && this.g[0][c].t >= 0 && !this.g[0][c].s);
+      if (!cols.length) break;
+      const c = cols[Math.floor(this.rand() * cols.length)];
+      this.g[0][c] = { t: ITEM };
+      this.setPieceTex(0, c);
+      const s = this.sprites[0][c]; if (s) this.tweens.add({ targets: s, scale: s.base * 1.3, duration: 160, yoyo: true });
+      need--; on++;
+    }
+  }
+  async collectDrops() {
+    const got = collectDrops(this.g);
+    if (!got.length) return false;
+    Sound.chime();
+    const jobs = got.map(([r, c]) => {
+      const s = this.sprites[r][c]; this.sprites[r][c] = null;
+      if (!s) return null;
+      return this.tween({ targets: s, y: s.y - CELL * 1.5, scale: s.base * 1.6, duration: 380, ease: 'Back.easeOut' }).then(() => this.tween({ targets: s, alpha: 0, duration: 200 })).then(() => s.destroy());
+    });
+    toast(got.length > 1 ? '¡Cajitas a salvo!' : '¡Cajita a salvo!');
+    await Promise.all(jobs);
+    const dg = this.dropGoal(); if (dg) dg.got += got.length;
+    this.cfg.onUpdate(this.state);
+    await this.animGravity(gravity(this.g, this.rand, this.cfg.types));
+    this.spawnItems();
+    return true;
+  }
   makeTex(set, t, s) {
     const key = this.texKey(set, t, s);
     if (this.textures.exists(key)) return;
@@ -1564,7 +1790,11 @@ class BoardScene extends Phaser.Scene {
   }
   tween(cfg) { return new Promise((res) => this.tweens.add({ ...cfg, onComplete: res })); }
   wait(ms) { return new Promise((res) => this.time.delayedCall(ms, res)); }
-  ctx() { return { rand: this.rand, prefer: new Set(this.state.goals.filter((g) => g.got < g.n).map((g) => g.t)) }; }
+  ctx() {
+    const open = this.state.goals.filter((g) => g.got < g.n);
+    return { rand: this.rand, prefer: new Set(open.filter((g) => typeof g.t === 'number').map((g) => g.t)),
+      rock: open.some((g) => g.t === 'rock'), floor: open.some((g) => g.t === 'floor') ? this.floor : null };
+  }
 
   startLevel(cfg) {
     this.tweens.killAll();
@@ -1573,11 +1803,17 @@ class BoardScene extends Phaser.Scene {
     this.fx.clear();
     this.cfg = cfg;
     this.set = cfg.set;
+    this.lv = cfg.lv;
     for (let t = 0; t < 6; t++) this.makeTex(this.set, t, null);
     this.state = { moves: cfg.moves, goals: cfg.goals };
     this.rand = Math.random;
-    this.g = newGrid(this.rand, cfg.types);
+    for (let tries = 0; tries < 40; tries++) {
+      this.g = newGrid(this.rand, cfg.types);
+      this.floor = setupObstacles(this.g, this.lv, this.rand);
+      if (findMove(this.g)) break;
+    }
     if (cfg.pre && cfg.pre.length) placeSpecials(this.g, cfg.pre, this.rand);
+    this.drawFloor();
     this.sprites = [];
     for (let r = 0; r < ROWS; r++) {
       this.sprites.push([]);
@@ -1635,9 +1871,10 @@ class BoardScene extends Phaser.Scene {
     this.down = null;
     if (this.busy || this.ended) return;
     const adj = (a, b) => a && Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) === 1;
-    if (this.tool === 'pala') { this.applyTool([cell]); return; }
+    if (this.tool === 'pala') { if (this.g[cell[0]][cell[1]].t === ITEM) { shakeSprite(this, cell); return; } this.applyTool([cell]); return; }
     if (this.tool === 'tijera') { this.applyTool(Array.from({ length: COLS }, (_, i) => [cell[0], i])); return; }
     if (this.tool === 'guante') {
+      if (!movable(this.g[cell[0]][cell[1]])) { shakeSprite(this, cell); return; }
       if (adj(this.gloveFirst, cell)) { this.applyGlove(this.gloveFirst, cell); return; }
       this.gloveFirst = cell; Sound.tick(); this.drawSel(); return;
     }
@@ -1683,6 +1920,7 @@ class BoardScene extends Phaser.Scene {
 
   async trySwap(a, b) {
     if (this.busy || this.ended) return;
+    if (!movable(this.g[a[0]][a[1]]) || !movable(this.g[b[0]][b[1]])) { Sound.bad(); shakeSprite(this, movable(this.g[a[0]][a[1]]) ? b : a); return; }
     this.busy = true;
     if (this.hintTimer) this.hintTimer.remove();
     Sound.swap();
@@ -1744,13 +1982,15 @@ class BoardScene extends Phaser.Scene {
     while (true) {
       if (!res) res = resolveStep(this.g, first ? swapPos : null, this.ctx());
       first = false;
-      if (!res) break;
+      if (!res) { if (await this.collectDrops()) continue; break; }
       combo++;
-      await this.animClear(res, combo);
-      const got = applyClear(this.g, res);
-      this.state.goals.forEach((g) => { g.got += got[g.t] || 0; });
+      const out = applyClear(this.g, res, this.floor);
+      await this.animClear(res, combo, out);
+      this.state.goals.forEach((g) => { g.got += out.got[g.t] || 0; });
+      if (out.floorHit.length) this.drawFloor();
       this.cfg.onUpdate(this.state);
       await this.animGravity(gravity(this.g, this.rand, this.cfg.types));
+      this.spawnItems();
       res = null;
     }
     if (combo >= 2) this.cfg.onCombo(combo);
@@ -1857,7 +2097,7 @@ class BoardScene extends Phaser.Scene {
     }
   }
 
-  async animClear(res, combo) {
+  async animClear(res, combo, out) {
     Sound.pop(combo);
     const trig = res.triggered.map((t) => t.s);
     if (trig.some((s) => ['o', 'o2', 'xo', 'all'].includes(s))) Sound.boom();
@@ -1867,8 +2107,8 @@ class BoardScene extends Phaser.Scene {
     if (res.created.length) Sound.special();
     if (res.converted.length) {
       for (const o of res.converted) {
-        this.setPieceTex(o.r, o.c);
         const s = this.sprites[o.r][o.c];
+        if (s) { s.setTexture(this.texKey(null, -1, o.s)); s.setDisplaySize(CELL * 0.9, CELL * 0.9); s.base = s.scaleX; }
         if (s) this.tweens.add({ targets: s, scale: s.base * 1.3, duration: 140, yoyo: true });
       }
       this.drawBeams(res.beams);
@@ -1884,7 +2124,13 @@ class BoardScene extends Phaser.Scene {
     this.tweens.add({ targets: this.fx, alpha: { from: 1, to: 0 }, duration: 420, onComplete: () => { this.fx.clear(); this.fx.setAlpha(1); } });
     if (res.flights.length) await Promise.all(res.flights.map((f) => this.flyCondor(f)));
     const jobs = [];
-    for (const k of res.clear) {
+    for (const k of out.damaged) {
+      const [r, c] = RC(k);
+      this.setPieceTex(r, c);
+      shakeSprite(this, [r, c]);
+    }
+    if (out.damaged.length || out.got.rock) Sound.bad();
+    for (const k of out.removed) {
       const [r, c] = RC(k);
       const s = this.sprites[r][c];
       this.sprites[r][c] = null;
