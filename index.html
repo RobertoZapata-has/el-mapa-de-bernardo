@@ -45,15 +45,57 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .screen.off{visibility:hidden;pointer-events:none}
 
 /* Portada */
-#title{justify-content:flex-end;background:linear-gradient(to top,rgba(20,10,6,.92) 0%,rgba(20,10,6,.55) 32%,rgba(20,10,6,0) 58%)}
-.title-inner{padding-inline:20px;padding-block:0 34px;display:flex;flex-direction:column;gap:12px;max-width:520px;margin:0 auto;width:100%;box-sizing:border-box}
 .kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-weight:800}
-h1{font-family:var(--display);font-weight:400;font-size:clamp(44px,13vw,64px);line-height:.95;margin:0;color:var(--cream);text-shadow:0 4px 0 var(--malbec-deep),0 8px 24px rgba(0,0,0,.5);text-wrap:balance}
-.title-inner p{margin:0;font-size:17px;color:var(--cream-dim);max-width:34ch}
 .btn{appearance:none;border:0;border-radius:16px;font-weight:800;font-size:18px;padding:15px 22px;min-height:54px;color:var(--cream);background:var(--malbec);box-shadow:0 4px 0 var(--malbec-deep),inset 0 0 0 2px rgba(242,182,50,.55)}
 .btn:active{transform:translateY(2px);box-shadow:0 2px 0 var(--malbec-deep),inset 0 0 0 2px rgba(242,182,50,.55)}
 .btn.ghost{background:rgba(255,246,230,.12);box-shadow:inset 0 0 0 2px var(--line)}
-.proto{font-size:13px;color:var(--cream-dim);opacity:.8}
+#title{background:linear-gradient(rgba(20,10,6,.55),rgba(20,10,6,0) 26%,rgba(20,10,6,0) 46%,rgba(20,10,6,.9) 78%)}
+.logo{margin:calc(18px + env(safe-area-inset-top,0px)) auto 0;display:flex;flex-direction:column;align-items:center;gap:0;text-align:center;filter:drop-shadow(0 8px 14px rgba(0,0,0,.55))}
+.logo .pre{font-family:var(--display);font-size:clamp(22px,6vw,30px);color:#fff6e6;letter-spacing:.04em;-webkit-text-stroke:5px var(--malbec-deep);paint-order:stroke fill;line-height:1}
+.logo .main{font-family:var(--display);font-size:clamp(54px,16vw,82px);line-height:.9;letter-spacing:.01em;background:linear-gradient(#fff3c4,#f2b632 55%,#c97a12);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:3px #5e1430;paint-order:stroke fill}
+.logo .ribbon{margin-top:8px;background:var(--malbec);color:#fff6e6;font:800 12px var(--body);letter-spacing:.14em;text-transform:uppercase;padding:6px 16px;border-radius:6px;box-shadow:0 3px 0 var(--malbec-deep),inset 0 0 0 1.5px rgba(242,182,50,.6)}
+.logo img{width:64px;height:64px;margin-bottom:-6px;animation:keyspin 6s ease-in-out infinite}
+@keyframes keyspin{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(14deg) translateY(-4px)}}
+.title-spacer{flex:1}
+.title-inner{padding-inline:20px;padding-block:0 calc(22px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;gap:14px;max-width:440px;margin:0 auto;width:100%;box-sizing:border-box}
+.continue{display:flex;align-items:center;gap:10px;background:rgba(30,20,14,.82);border:1px solid var(--line);border-radius:16px;padding:8px 14px 8px 8px;width:100%;box-sizing:border-box}
+.continue .cthumb{width:52px;height:52px;border-radius:12px;background:#000 center/cover no-repeat;flex:none;box-shadow:0 0 0 2px var(--gold)}
+.continue .ctext{display:flex;flex-direction:column;min-width:0}
+.continue .ctext small{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--gold)}
+.continue .ctext b{font-family:var(--display);font-weight:400;font-size:19px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.continue .ctext span{font-size:13px;color:var(--cream-dim)}
+.continue .cbar{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;font:700 12px var(--body);color:var(--cream-dim);font-variant-numeric:tabular-nums}
+.continue .cbar i{display:block;width:70px;height:8px;border-radius:99px;background:rgba(255,246,230,.15);overflow:hidden}
+.continue .cbar i::after{content:"";display:block;height:100%;width:var(--p,0%);background:linear-gradient(90deg,#f2b632,#ffd979)}
+.btn-play{appearance:none;border:0;width:100%;border-radius:22px;font-family:var(--display);font-size:34px;letter-spacing:.04em;padding:14px 20px 16px;color:#fff;background:linear-gradient(#6fdc6a,#2f9f3b);box-shadow:0 6px 0 #1d6b27,0 10px 22px rgba(0,0,0,.45),inset 0 2px 0 rgba(255,255,255,.5);text-shadow:0 3px 0 #1d6b27;cursor:pointer;animation:playpulse 1.6s ease-in-out infinite}
+.btn-play:active{transform:translateY(4px);box-shadow:0 2px 0 #1d6b27,inset 0 2px 0 rgba(255,255,255,.5)}
+@keyframes playpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+.title-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.title-row .btn{font-size:16px;padding:12px 10px;min-height:48px}
+.proto{font-size:12px;color:var(--cream-dim);opacity:.7}
+/* Cómo jugar */
+.howto{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
+.howto .step-n{display:flex;gap:6px}
+.howto .step-n i{width:8px;height:8px;border-radius:50%;background:rgba(255,246,230,.25)}
+.howto .step-n i.on{background:var(--gold)}
+.demo{display:flex;align-items:center;justify-content:center;gap:6px;min-height:110px;width:100%}
+.demo img{width:58px;height:58px;object-fit:contain}
+.demo .arrow{font:800 30px var(--body);color:var(--gold)}
+.demo .slide{animation:slide 1.6s ease-in-out infinite}
+@keyframes slide{0%,25%{transform:translateX(0)}50%,75%{transform:translateX(64px)}100%{transform:translateX(0)}}
+.demo .slide2{animation:slide2 1.6s ease-in-out infinite}
+@keyframes slide2{0%,25%{transform:translateX(0)}50%,75%{transform:translateX(-64px)}100%{transform:translateX(0)}}
+.demo-hud{display:flex;gap:10px;align-items:stretch}
+.demo-hud .moves{min-width:64px}
+.demo-hud .goals{padding:6px 12px}
+.boost-list{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center;width:100%;text-align:left}
+.boost-list img{width:46px;height:46px;object-fit:contain}
+.boost-list span{font-size:14px;color:var(--cream)}
+.boost-list b{color:var(--gold)}
+.fx-hand{position:absolute;width:0;height:0;pointer-events:none;z-index:5}
+.fx-hand::before{content:"";position:absolute;left:-22px;top:-22px;width:44px;height:44px;border-radius:50%;background:radial-gradient(circle,#fff 0 40%,rgba(255,255,255,.75) 41% 60%,rgba(255,255,255,0) 62%);box-shadow:0 0 0 4px rgba(242,182,50,.9),0 6px 14px rgba(0,0,0,.5)}
+.fx-hand::after{content:"";position:absolute;left:-34px;top:-34px;width:68px;height:68px;border-radius:50%;border:3px solid rgba(255,246,230,.9);animation:tapring 1.5s ease-out infinite}
+@keyframes tapring{0%{transform:scale(.5);opacity:1}40%{transform:scale(1);opacity:0}100%{opacity:0}}
 
 /* Mapa de capítulos */
 .link{appearance:none;background:none;border:0;color:var(--cream-dim);font-size:14px;text-decoration:underline;padding:8px}
@@ -252,13 +294,21 @@ button.pill{appearance:none;cursor:pointer}
   <div id="bg"></div>
 
   <section id="title" class="screen">
+    <div class="logo">
+      <img src="img/llave.png" alt="">
+      <span class="pre">El mapa de</span>
+      <span class="main">Bernardo</span>
+      <span class="ribbon">Una aventura por Mendoza</span>
+    </div>
+    <div class="title-spacer"></div>
     <div class="title-inner">
-      <span class="kicker">Una búsqueda del tesoro por Mendoza</span>
-      <h1>El mapa de Bernardo</h1>
-      <p>Dos nietos, dos mitades de un mapa y un secreto que sus abuelos escondieron hace cincuenta años.</p>
-      <button class="btn" id="btn-play" type="button">Jugar</button>
-      <button class="btn ghost install" type="button" hidden>Instalar en el celular</button>
-      <span class="proto">Prototipo</span>
+      <div class="continue" id="continue"></div>
+      <button class="btn-play" id="btn-play" type="button">JUGAR</button>
+      <div class="title-row">
+        <button class="btn ghost" id="btn-howto" type="button">Cómo jugar</button>
+        <button class="btn ghost snd" type="button" aria-pressed="true">Sonido: sí</button>
+      </div>
+      <button class="link install" type="button" hidden>Instalar en el celular</button>
     </div>
   </section>
 
@@ -788,7 +838,7 @@ const IMG = {};
 function loadImg(src) {
   return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; IMG[src] = im; });
 }
-const imagesReady = Promise.all([...Object.values(SETS).flat().map((p) => p.img), ...new Set(Object.values(SPECIAL_IMG)), 'img/ui_cofre.png'].map(loadImg));
+const imagesReady = Promise.all([...Object.values(SETS).flat().map((p) => p.img), ...new Set(Object.values(SPECIAL_IMG)), 'img/ui_cofre.png', ...['piedra', 'ladrillo', 'hielo', 'lava'].map((k) => `img/rock_${k}.png`)].map(loadImg));
 
 /* ===== 3 niveles por lugar ===== */
 // Nivel 1: juntar fichas. Nivel 2: obstáculo del lugar. Nivel 3: bajar la cajita de Bernardo.
@@ -807,6 +857,20 @@ const ROCK_SKIN = {
 function drawRock(ctx, skin, hp) {
   const k = ROCK_SKIN[skin] || ROCK_SKIN.piedra;
   ctx.clearRect(0, 0, 128, 128);
+  const im = IMG[`img/rock_${skin}.png`];
+  if (im && im.naturalWidth) {
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 5;
+    ctx.drawImage(im, 6, 4, 116, 116); ctx.restore();
+    if (hp >= 2) {
+      // reforzada: dos cintas de hierro con remaches
+      for (const y of [42, 82]) {
+        const gr = ctx.createLinearGradient(0, y - 6, 0, y + 6); gr.addColorStop(0, '#8a8f96'); gr.addColorStop(0.5, '#4a4f56'); gr.addColorStop(1, '#2c3036');
+        ctx.fillStyle = gr; ctx.fillRect(10, y - 6, 108, 12);
+        ctx.fillStyle = '#d9b45a'; [22, 64, 106].forEach((x) => { ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+      }
+    }
+    return;
+  }
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 5;
   const gr = ctx.createLinearGradient(20, 14, 108, 116);
@@ -834,7 +898,7 @@ function drawRock(ctx, skin, hp) {
   }
 }
 const iconCache = {};
-function rockIcon(skin) { const k = 'r' + skin; if (!iconCache[k]) { const cv = document.createElement('canvas'); cv.width = cv.height = 128; drawRock(cv.getContext('2d'), skin, 1); iconCache[k] = cv.toDataURL(); } return iconCache[k]; }
+function rockIcon(skin) { return `img/rock_${skin}.png`; }
 function floorIcon(skin) {
   const k = 'f' + skin;
   if (!iconCache[k]) {
@@ -1020,8 +1084,7 @@ const CHAPTERS = [
     moves: 16, types: 5, goals: [[2, 18], [1, 18]],
     obj: { icon: 'gorra', name: 'La gorra de oficial', desc: 'Bernardo dejó el ascenso, pero se llevó la gorra de recuerdo.' },
     intro: [N('Córdoba, fines de los años 60.', 'img/esc_prologo.jpg'), S('bernardo_policia', 'Me ofrecen el ascenso. Uniforme nuevo, sueldo fijo. Todo lo que siempre quise.', 1), S('bernardo_policia', 'Pero ella se va a Mendoza mañana, en el primer colectivo.', 1),
-      N('Deslizá una ficha para juntar tres iguales. Con 4 en línea aparece el Zonda, con un cuadrado de 4 el Cóndor, con una L o una T el Volcán y con 5 en línea la Llave.'),
-      N('Tocá un booster para usarlo, o deslizalo contra otro booster para combinarlos.')],
+],
     outro: [S('bernardo_policia', 'Si me quedo, lo tengo todo. Si me voy, la tengo a ella.', 1), N('A la mañana siguiente, Bernardo se subió a ese colectivo.', 'img/esc_colectivo.jpg')] },
   { id: 'finca', num: 'Capítulo 1', name: 'La finca de Bernardo', sub: 'Maipú', bg: 'img/bg_finca.jpg', set: 'finca',
     moves: 18, types: 5, goals: [[0, 26], [2, 22]],
@@ -1145,7 +1208,18 @@ function setBg(src, awake) { if (src) bg.style.backgroundImage = `url(${src})`; 
 function setAwake(p) { bg.style.filter = `saturate(${(0.3 + 0.7 * p).toFixed(2)}) brightness(${(0.78 + 0.22 * p).toFixed(2)})`; }
 
 /* ===== Portada y mapa ===== */
-function openTitle() { setBg('img/bg_portada.jpg', 1); show('title'); }
+function openTitle() {
+  setBg('img/bg_portada.jpg', 1);
+  const total = CHAPTERS.length * 3, done = CHAPTERS.reduce((a, c) => a + (save.levels[c.id] || 0), 0);
+  const i = CHAPTERS.findIndex((c, k) => k <= save.unlocked && (save.levels[c.id] || 0) < 3);
+  const ch = CHAPTERS[i < 0 ? CHAPTERS.length - 1 : i], lv = i < 0 ? 3 : (save.levels[ch.id] || 0) + 1;
+  $('continue').innerHTML = `<span class="cthumb" style="background-image:url(${ch.bg})"></span>
+    <span class="ctext"><small>${done ? 'Seguís en' : 'Empezás en'}</small><b></b><span>${i < 0 ? '¡Terminaste la historia!' : `Nivel ${lv} de 3`}</span></span>
+    <span class="cbar">${done}/${total}<i style="--p:${Math.round(done / total * 100)}%"></i></span>`;
+  $('continue').querySelector('b').textContent = ch.name;
+  syncSoundButtons();
+  show('title');
+}
 const NODES = {
   prologo: [86, 95], finca: [60, 88], ruinas: [72, 73], cerro: [70, 58], villavicencio: [32, 52], potrerillos: [56, 45],
   puente: [83, 38], cristo: [36, 27], uco: [80, 22], atuel: [34, 12], payunia: [72, 7],
@@ -1194,11 +1268,15 @@ function openMore() {
   let armed = false;
   return modal(`<span class="kicker">Opciones</span><h3>El mapa de Bernardo</h3><div class="more-list">
       <button type="button" class="snd" aria-pressed="true">Sonido: sí</button>
+      <button type="button" id="m-howto">Cómo jugar</button>
+      <button type="button" id="m-title">Volver a la portada</button>
       <button type="button" id="m-install" hidden>Instalar en el celular</button>
       <button type="button" id="m-unlock">Desbloquear todo (modo prueba)</button>
       <button type="button" id="m-reset">Borrar progreso</button></div>`, [['Cerrar', 1]], (card) => {
     syncSoundButtons();
     card.querySelector('.snd').addEventListener('click', () => { Sound.unlock(); Sound.toggle(); if (!Sound.muted) Sound.music('game'); syncSoundButtons(); });
+    card.querySelector('#m-howto').addEventListener('click', async () => { await showHowTo(); renderMap(); });
+    card.querySelector('#m-title').addEventListener('click', () => { $('modal').classList.add('off'); openTitle(); });
     const ins = card.querySelector('#m-install');
     ins.hidden = standalone() || !(installPrompt || isIOS);
     ins.addEventListener('click', () => { document.querySelector('#title .install').click(); });
@@ -1207,6 +1285,33 @@ function openMore() {
       if (!armed) { armed = true; e.currentTarget.textContent = 'Tocá de nuevo para borrar todo'; return; }
       save = fresh(); persist(); $('modal').classList.add('off'); renderMap();
     });
+  });
+}
+
+/* ===== Cómo jugar ===== */
+const HOWTO = [
+  { t: 'Deslizá para juntar 3', p: 'Mové una ficha hacia una casilla vecina. Si se juntan 3 o más iguales en línea, desaparecen.',
+    d: () => `<div class="demo"><img src="${SETS.finca[0].img}" alt=""><img src="${SETS.finca[0].img}" alt=""><img class="slide" src="${SETS.finca[2].img}" alt=""><img class="slide2" src="${SETS.finca[0].img}" alt=""></div>` },
+  { t: 'Cumplí el objetivo', p: 'Arriba ves cuántas jugadas te quedan y qué tenés que juntar. Si llegás a 0 antes, perdés una vida.',
+    d: () => `<div class="demo"><div class="demo-hud"><div class="moves"><b>18</b><span>Jugadas</span></div><div class="goals"><div class="goal"><img src="${SETS.finca[0].img}" alt=""><span>20</span></div><div class="goal"><img src="${SETS.finca[2].img}" alt=""><span>18</span></div></div></div></div>` },
+  { t: 'Armá boosters', p: 'Con más de 3 fichas aparece un booster. Tocalo para usarlo, o deslizalo contra otro para combinarlos.',
+    d: () => `<div class="boost-list"><img src="img/b_zonda.png" alt=""><span><b>4 en línea</b> · Zonda: barre una fila</span><img src="img/b_condor.png" alt=""><span><b>Cuadrado de 4</b> · Cóndor: vuela a lo que te falta</span><img src="img/b_volcan.png" alt=""><span><b>Forma de L o T</b> · Volcán: explota alrededor</span><img src="img/p_llave.png" alt=""><span><b>5 en línea</b> · Llave: se lleva un color</span></div>` },
+  { t: 'Cada lugar tiene 3 niveles', p: 'Primero juntás fichas, después superás el obstáculo del lugar, y al final bajás la cajita de Bernardo hasta abajo para seguir la historia.',
+    d: () => `<div class="demo"><img src="img/rock_ladrillo.png" alt=""><span class="arrow">·</span><img src="${floorIcon('tierra')}" alt=""><span class="arrow">·</span><img src="img/ui_cofre.png" alt=""></div>` },
+  { t: 'Vidas y monedas', p: 'Tenés 5 vidas y se recupera una cada 30 minutos. Con las monedas que ganás comprás ayudas en el Mercado.',
+    d: () => `<div class="demo"><img src="img/ui_corazon.png" alt=""><img src="img/ui_moneda.png" alt=""><img src="img/ui_mercado.png" alt=""></div>` },
+];
+function showHowTo() {
+  return new Promise((resolve) => {
+    let i = 0;
+    const draw = () => {
+      const st = HOWTO[i], last = i === HOWTO.length - 1;
+      modal(`<span class="kicker">Cómo jugar · ${i + 1} de ${HOWTO.length}</span><div class="howto">${st.d()}<h3>${st.t}</h3><p>${st.p}</p><div class="step-n">${HOWTO.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div></div>`,
+        last ? [['¡A jugar!', 'end']] : [['Siguiente', 'next'], ['Saltar', 'end', 1]]).then((v) => {
+        if (v === 'next') { i++; draw(); } else { save.seenHelp = 1; persist(); resolve(); }
+      });
+    };
+    draw();
   });
 }
 
@@ -1471,7 +1576,7 @@ function updateToolbar() {
     b.setAttribute('aria-pressed', String(!!(sceneRef && sceneRef.tool === k)));
   });
   const hint = $('tool-hint');
-  if (hint) {
+  if (hint && !(sceneRef && sceneRef.handEl && !sceneRef.tool)) {
     const k = sceneRef && sceneRef.tool;
     hint.hidden = !k;
     if (k) hint.textContent = ITEMS[k].hint;
@@ -1500,6 +1605,7 @@ async function startLevel(ch, L, pre, replay) {
   sceneRef = scene;
   game.scale.refresh();
   scene.startLevel({
+    tutorial: ch.id === 'prologo' && L === 0 && !save.tutDone,
     set: ch.set, lv, moves: lv.moves, types: lv.types, goals: lv.goals.map(([t, n]) => ({ t, n, got: 0 })), pre: pre || [],
     onUpdate: (st) => { renderHUD(st, ch, lv); const tot = st.goals.reduce((a, g) => a + g.n, 0), got = st.goals.reduce((a, g) => a + Math.min(g.n, g.got), 0); if (!ch.memory) setAwake(0.15 + 0.85 * got / tot); },
     onCombo: (n) => { if (n === 2) toast('¡Bien!'); else if (n === 3) toast('¡Bárbaro!'); else if (n >= 4) toast('¡Qué genio!'); },
@@ -1825,7 +1931,8 @@ class BoardScene extends Phaser.Scene {
     }
     this.busy = true; this.ended = false; this.selected = null; this.down = null; this.movesUsed = 0;
     this.tool = null; this.gloveFirst = null;
-    this.time.delayedCall(950, () => { this.busy = false; });
+    this.hideHand();
+    this.time.delayedCall(950, () => { this.busy = false; if (cfg.tutorial) this.showHand(); });
     this.drawSel();
     cfg.onUpdate(this.state);
     this.armHint();
@@ -1916,7 +2023,38 @@ class BoardScene extends Phaser.Scene {
     this.sprites[a[0]][a[1]] = sb; this.sprites[b[0]][b[1]] = sa;
   }
 
-  useMove() { this.state.moves--; this.movesUsed++; this.cfg.onUpdate(this.state); }
+  useMove() {
+    this.state.moves--; this.movesUsed++; this.cfg.onUpdate(this.state);
+    if (this.cfg.tutorial) { this.hideHand(); this.cfg.tutorial = false; save.tutDone = 1; persist(); }
+  }
+  showHand() {
+    let m = null;
+    for (let r = ROWS - 1; r >= 0 && !m; r--) for (let c = 0; c < COLS - 1 && !m; c++) {
+      if (this.g[r][c].s || this.g[r][c + 1].s) continue;
+      swapCells(this.g, [r, c], [r, c + 1]); const ok = hasMatch(this.g); swapCells(this.g, [r, c], [r, c + 1]);
+      if (ok) m = [[r, c], [r, c + 1]];
+    }
+    if (!m) m = findMove(this.g);
+    if (!m || !document.querySelector('#board canvas')) return;
+    const cv = document.querySelector('#board canvas').getBoundingClientRect(), ar = app.getBoundingClientRect();
+    const w = cv.width / COLS, h = cv.height / ROWS;
+    const pt = ([r, c]) => [cv.left - ar.left + (c + 0.5) * w, cv.top - ar.top + (r + 0.5) * h];
+    const [x0, y0] = pt(m[0]), [x1, y1] = pt(m[1]);
+    const el = document.createElement('div'); el.className = 'fx-hand';
+    el.style.left = `${x0}px`; el.style.top = `${y0}px`;
+    $('fx').appendChild(el);
+    el.animate([{ transform: 'translate(0,0) scale(1.2)', opacity: 0 }, { transform: 'translate(0,0) scale(1)', opacity: 1, offset: 0.2 },
+      { transform: `translate(${x1 - x0}px,${y1 - y0}px) scale(1)`, opacity: 1, offset: 0.7 }, { transform: `translate(${x1 - x0}px,${y1 - y0}px) scale(1.2)`, opacity: 0 }],
+      { duration: 1500, iterations: Infinity, easing: 'ease-in-out' });
+    this.handEl = el;
+    const hint = $('tool-hint'); hint.textContent = 'Deslizá la ficha para juntar 3 iguales'; hint.hidden = false;
+    m.forEach(([r, c]) => { const s = this.sprites[r][c]; if (s) this.tweens.add({ targets: s, scale: s.base * 1.12, duration: 500, yoyo: true, repeat: -1 }); });
+    this.handCells = m;
+  }
+  hideHand() {
+    if (this.handEl) { this.handEl.remove(); this.handEl = null; $('tool-hint').hidden = true; }
+    if (this.handCells) { this.handCells.forEach(([r, c]) => { const s = this.sprites[r] && this.sprites[r][c]; if (s) { this.tweens.killTweensOf(s); s.setScale(s.base); } }); this.handCells = null; }
+  }
 
   async trySwap(a, b) {
     if (this.busy || this.ended) return;
@@ -2196,7 +2334,12 @@ imagesReady.then(() => {
 });
 
 /* ===== Botones ===== */
-$('btn-play').addEventListener('click', () => { Sound.unlock(); Sound.music('game'); Sound.tick(); renderMap(); });
+$('btn-play').addEventListener('click', async () => {
+  Sound.unlock(); Sound.music('game'); Sound.tick();
+  if (!save.seenHelp) { await showHowTo(); renderMap(); playPlace(0); return; }
+  renderMap();
+});
+$('btn-howto').addEventListener('click', async () => { Sound.unlock(); Sound.tick(); await showHowTo(); openTitle(); });
 $('btn-back').addEventListener('click', async () => {
   Sound.tick();
   const sc = await boardReady;
@@ -2205,7 +2348,7 @@ $('btn-back').addEventListener('click', async () => {
     if (v !== 'leave') return;
     loseLife();
   }
-  sc.ended = true; sc.setTool(null);
+  sc.ended = true; sc.setTool(null); sc.hideHand();
   app.classList.remove('memory');
   renderMap();
 });
