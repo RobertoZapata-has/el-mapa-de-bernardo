@@ -8,18 +8,23 @@ Se puede instalar en el celular con el botón "Instalar en el celular" de la por
 
 ## Capítulos
 
+El juego crece hacia 100 niveles en 4 actos. El Acto 1 (la ciudad) ya está completo, con 4 niveles por lugar; los lugares que siguen todavía tienen 3 niveles cada uno hasta que se arme su acto.
+
 | # | Lugar | Objeto |
 |---|---|---|
 | Prólogo | Córdoba | La gorra de oficial |
 | 1 | El olivo de Bernardo, Maipú | El cuaderno de Bernardo |
 | 2 | Ruinas de San Francisco | El mapa completo |
-| 3 | Cerro de la Gloria | Primer fragmento |
-| 4 | Villavicencio | Segundo fragmento |
-| 5 | Potrerillos | Tercer fragmento |
-| 6 | El Trasandino, Puente del Inca | El boleto del Trasandino |
-| 7 | Cristo Redentor | Cuarto fragmento |
-| 8 | Valle de Uco | Quinto fragmento |
-| 9 | Cañón del Atuel | Sexto fragmento |
+| 3 | Plaza Independencia | La moneda agujereada |
+| 4 | Parque y Lago | La entrada de la Vendimia |
+| 5 | Cerro de la Gloria | Primer fragmento |
+| 6 | Bodega en Chacras de Coria | El corcho de la barrica 1974 |
+| 7 | Villavicencio | Segundo fragmento |
+| 8 | Potrerillos | Tercer fragmento |
+| 9 | El Trasandino, Puente del Inca | El boleto del Trasandino |
+| 10 | Cristo Redentor | Cuarto fragmento |
+| 11 | Valle de Uco | Quinto fragmento |
+| 12 | Cañón del Atuel | Sexto fragmento |
 | Final | La Payunia, Malargüe | La Llave del Agua |
 
 ## Cómo está hecho
@@ -33,13 +38,16 @@ Se puede instalar en el celular con el botón "Instalar en el celular" de la por
 
 ## Niveles
 
-Cada lugar tiene 3 niveles (33 en total):
+Cada lugar del Acto 1 tiene 4 niveles:
 
 1. **Juntar fichas.** Empieza con la escena de llegada.
 2. **El obstáculo del lugar:** suelo para limpiar (tierra seca, arena, nieve, polvo, ceniza) o piedras para romper (ladrillos, piedras, hielo, piedras volcánicas; algunas necesitan dos golpes).
-3. **Bajar la cajita de Bernardo** hasta la fila de abajo. Al ganarlo se consigue el objeto del lugar y sigue la historia.
+3. **Alambre de viña:** fichas atadas que no se mueven ni caen y frenan a las de arriba (las vecinas bajan en diagonal). Se sueltan al juntarlas o al alcanzarlas con un booster.
+4. **Bajar la cajita de Bernardo** hasta la fila de abajo. Al ganarlo se consigue el objeto del lugar y sigue la historia.
 
-Los niveles están en la constante `LEVELS` dentro de `index.html`.
+Cada 10 niveles hay uno **especial**: menos jugadas, una barra de carrera contra el reloj o contra Octavio, y 100 monedas de premio la primera vez que se gana. En el Acto 1 son el nivel 10 (Ruinas, contra el reloj) y el 20 (Parque, contra Octavio).
+
+Los niveles están en la constante `LEVELS` dentro de `index.html`. El progreso de quienes ya jugaban se conserva: los lugares terminados siguen terminados y los lugares nuevos aparecen antes en el camino.
 
 ## Boosters
 
@@ -54,7 +62,7 @@ Se activan tocándolos o deslizándolos. Dos boosters juntos se combinan: Zonda 
 
 ## Pantalla principal y escenas
 
-- El mapa de Mendoza es la pantalla principal: cada lugar es un punto sobre el dibujo, con el siguiente capítulo marcado con "Jugar". Abajo están el Mercado, la Mochila y el Premio del día.
+- El mapa es la pantalla principal y tiene un dibujo por acto (`img/mapa_ciudad.jpg` para el Acto 1, `img/mapa_cordillera.jpg` para lo que sigue). Cada lugar es un punto sobre el dibujo, con el siguiente marcado con "Jugar". Abajo están el Mercado, la Mochila y el Premio del día.
 - Los diálogos muestran una ilustración de la escena cuando existe la imagen `img/esc_*.jpg` correspondiente (si falta, el diálogo se ve igual que antes).
 - Los boosters tienen efectos grandes que se salen del tablero: zoom al armarlos, el Cóndor que despega fuera de la pantalla, la erupción del Volcán y la Llave con rayos.
 
