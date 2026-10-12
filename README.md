@@ -11,7 +11,7 @@ Se puede instalar en el celular con el botón "Instalar en el celular" de la por
 | # | Lugar | Objeto |
 |---|---|---|
 | Prólogo | Córdoba | La gorra de oficial |
-| 1 | La finca de Bernardo, Maipú | El cuaderno de Bernardo |
+| 1 | El olivo de Bernardo, Maipú | El cuaderno de Bernardo |
 | 2 | Ruinas de San Francisco | El mapa completo |
 | 3 | Cerro de la Gloria | Primer fragmento |
 | 4 | Villavicencio | Segundo fragmento |
