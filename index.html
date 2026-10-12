@@ -13,10 +13,15 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Mapa de Bernardo">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Figtree:wght@400;600;700;800&family=Caveat:wght@500;700&display=swap">
+<link rel="preload" href="fonts/bagel-fat-one.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/mali-600.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+/* Tipografías (incluidas en el juego, funcionan sin internet): Bagel Fat One para títulos, Mali para textos, Gochi Hand para la carta */
+@font-face{font-family:"Bagel Fat One";src:url(fonts/bagel-fat-one.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Mali";src:url(fonts/mali-400.woff2) format("woff2");font-weight:400 500;font-display:swap}
+@font-face{font-family:"Mali";src:url(fonts/mali-600.woff2) format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Mali";src:url(fonts/mali-700.woff2) format("woff2");font-weight:700 900;font-display:swap}
+@font-face{font-family:"Gochi Hand";src:url(fonts/gochi-hand.woff2) format("woff2");font-weight:400 700;font-display:swap}
 /* Base: márgenes seguros del celular */
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
 body{margin:0}
@@ -29,9 +34,9 @@ img{max-width:100%}
   --ink:#2a1a12; --cream:#fff6e6; --cream-dim:#e9dcc6; --malbec:#8c2346; --malbec-deep:#5e1430;
   --gold:#f2b632; --glass:rgba(32,20,14,.62); --glass-strong:rgba(28,16,10,.86); --line:rgba(255,236,200,.28);
   --memory:#c9965a; --ok:#5fcf86;
-  --display:"Lilita One","Arial Rounded MT Bold",system-ui,sans-serif;
-  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --hand:"Caveat","Segoe Print","Bradley Hand",cursive;
+  --display:"Bagel Fat One","Arial Rounded MT Bold",system-ui,sans-serif;
+  --body:"Mali",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --hand:"Gochi Hand","Segoe Print","Bradley Hand",cursive;
   --paper:#f3e3c3; --paper-ink:#3b2a1c;
 }
 html,body{height:100%;overflow:hidden}
@@ -899,6 +904,38 @@ function findMove(g) {
   return null;
 }
 
+// Jugada que se ve: las dos fichas que se cambian y la combinación que arman están fuera de la niebla
+function findVisibleMove(g, fog) {
+  if (!fog || !fog.some((row) => row.some((v) => v > 0))) return findMove(g);
+  const clear = (r, c) => !fog[r][c];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    for (const [dr, dc] of [[0, 1], [1, 0]]) {
+      const r2 = r + dr, c2 = c + dc;
+      if (r2 >= ROWS || c2 >= COLS) continue;
+      if (!clear(r, c) || !clear(r2, c2)) continue;
+      if (!movable(g[r][c]) || !movable(g[r2][c2])) continue;
+      if (g[r][c].s || g[r2][c2].s) return [[r, c], [r2, c2]];
+      swapCells(g, [r, c], [r2, c2]);
+      const runs = [...findRuns(g), ...findSquares(g)];
+      swapCells(g, [r, c], [r2, c2]);
+      const ok = runs.some((run) => run.cells.some(([a, b]) => (a === r && b === c) || (a === r2 && b === c2)) && run.cells.every(([a, b]) => clear(a, b)));
+      if (ok) return [[r, c], [r2, c2]];
+    }
+  }
+  return null;
+}
+// Mezcla solo las fichas que se ven hasta que haya una jugada visible
+function reshuffleVisible(g, fog, rand) {
+  const pos = [], pieces = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { const p = g[r][c]; if (!fog[r][c] && p && p.t >= -1 && !p.w) { pos.push([r, c]); pieces.push(p); } }
+  for (let tries = 0; tries < 300; tries++) {
+    for (let i = pieces.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pieces[i], pieces[j]] = [pieces[j], pieces[i]]; }
+    pos.forEach(([r, c], i) => { g[r][c] = pieces[i]; });
+    if (!hasMatch(g) && findVisibleMove(g, fog)) return true;
+  }
+  return false;
+}
+
 function newGrid(rand, types) {
   for (let tries = 0; tries < 300; tries++) {
     const g = [];
@@ -946,7 +983,7 @@ function placeSpecials(g, list, rand) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { ROCK, ITEM, WEED, growWeed, flowWater, waterFront, setupFog, fixed, collectDrops, setupObstacles, movable, COLS, ROWS, K, RC, findRuns, findSquares, hasMatch, findGroups, resolveStep, activateAt, activateSwap, applyClear, gravity, swapCells, findMove, newGrid, reshuffle, placeSpecials, mostCommonColor };
+if (typeof module !== 'undefined') module.exports = { findVisibleMove, reshuffleVisible, ROCK, ITEM, WEED, growWeed, flowWater, waterFront, setupFog, fixed, collectDrops, setupObstacles, movable, COLS, ROWS, K, RC, findRuns, findSquares, hasMatch, findGroups, resolveStep, activateAt, activateSwap, applyClear, gravity, swapCells, findMove, newGrid, reshuffle, placeSpecials, mostCommonColor };
 </script>
 
 <script>
@@ -981,7 +1018,7 @@ const imagesReady = Promise.all([...Object.values(SETS).flat().map((p) => p.img)
 /* ===== Niveles de cada lugar ===== */
 // 1: juntar fichas. 2: obstáculo del lugar. 3: la mecánica del acto (en el Acto 1, el alambre de viña). Último: bajar la cajita de Bernardo.
 // Acto 1: alambre. Acto 2: barriles y niebla. Acto 3: maleza. Acto 4: acequias. special: nivel especial (cada 10).
-const LEVELS = {"prologo":[{"moves":14,"types":5,"goals":[[2,14],[1,14]]},{"moves":16,"types":5,"goals":[["floor",16]],"floor":{"rows":[4,7],"n":16,"hp":1},"fskin":"polvo"},{"moves":16,"types":5,"goals":[["wire",4],[0,12]],"wire":{"rows":[3,5],"n":4}},{"moves":18,"types":5,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"finca":[{"moves":16,"types":5,"goals":[[0,20],[2,18]]},{"moves":16,"types":5,"goals":[["floor",24]],"floor":{"rows":[3,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":17,"types":5,"goals":[["wire",6],[2,14]],"wire":{"rows":[2,6],"n":6}},{"moves":20,"types":5,"goals":[["drop",2],[0,10]],"drop":{"n":2,"start":1}}],"ruinas":[{"moves":17,"types":5,"goals":[[3,22],[4,22]]},{"moves":13,"types":5,"goals":[["rock",12],[3,14]],"rocks":{"rows":[3,6],"n":12,"hp":1},"rskin":"ladrillo","special":"reloj"},{"moves":18,"types":5,"goals":[["wire",8],[4,16]],"wire":{"rows":[2,6],"n":8}},{"moves":18,"types":5,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[5,7],"n":8,"hp":1},"rskin":"ladrillo"}],"plaza":[{"moves":17,"types":5,"goals":[[2,24],[4,20]]},{"moves":18,"types":5,"goals":[["floor",22],[2,10]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":19,"types":5,"goals":[["wire",9],["floor",8]],"wire":{"rows":[1,5],"n":9},"floor":{"rows":[6,7],"n":8,"hp":1},"fskin":"polvo"},{"moves":20,"types":5,"goals":[["drop",2],[2,12]],"drop":{"n":2,"start":1}}],"parque":[{"moves":19,"types":5,"goals":[[2,26],[1,22]]},{"moves":19,"types":5,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":20,"types":5,"goals":[["wire",10],[1,14]],"wire":{"rows":[1,6],"n":10}},{"moves":17,"types":5,"goals":[["drop",2],["wire",4]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":4},"special":"octavio"}],"cerro":[{"moves":21,"types":6,"goals":[[1,20],[5,18]]},{"moves":21,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["wire",10],["floor",10]],"wire":{"rows":[1,5],"n":10},"floor":{"rows":[5,7],"n":10,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"bodega":[{"moves":22,"types":6,"goals":[[0,24],[5,20]]},{"moves":22,"types":6,"goals":[["rock",12],[0,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"ladrillo"},{"moves":25,"types":6,"goals":[["wire",12],[0,14]],"wire":{"rows":[1,6],"n":12}},{"moves":27,"types":6,"goals":[["drop",2],["wire",6]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":6}}],"villavicencio":[{"moves":20,"types":6,"goals":[[5,18],[0,18],[3,14]]},{"moves":18,"types":6,"goals":[["rock",12],[5,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"piedra","special":"octavio"},{"moves":22,"types":6,"goals":[["barrel",4],[1,14]],"barrels":{"rows":[3,6],"n":4,"hp":3}},{"moves":25,"types":6,"goals":[["drop",2],["floor",10]],"drop":{"n":2,"start":1},"floor":{"rows":[6,7],"n":10,"hp":1},"fskin":"tierra"}],"cacheuta":[{"moves":23,"types":6,"goals":[[2,24],[4,20]]},{"moves":22,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":18,"types":6,"goals":[["fog",30],[0,14]],"fog":{"rows":[0,6],"n":30}},{"moves":27,"types":6,"goals":[["drop",2],["fog",10]],"drop":{"n":2,"start":1},"fog":{"rows":[3,7],"n":10}}],"potrerillos":[{"moves":25,"types":6,"goals":[[2,26],[4,16]]},{"moves":24,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":22,"types":6,"goals":[["barrel",4],["fog",14]],"barrels":{"rows":[4,6],"n":4,"hp":3},"fog":{"rows":[1,4],"n":14}},{"moves":23,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"special":"agua"}],"uspallata":[{"moves":26,"types":6,"goals":[[1,26],[3,22]]},{"moves":19,"types":6,"goals":[["rock",14],[2,12]],"rocks":{"rows":[2,6],"n":14,"hp":1},"rskin":"ladrillo"},{"moves":15,"types":6,"goals":[["fog",30]],"fog":{"rows":[0,7],"n":30}},{"moves":26,"types":6,"goals":[["drop",2],["barrel",3]],"drop":{"n":2,"start":1},"barrels":{"rows":[4,6],"n":3,"hp":3}}],"puente":[{"moves":22,"types":6,"goals":[[0,22],[2,22],[1,14]]},{"moves":22,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"nieve"},{"moves":24,"types":6,"goals":[["barrel",6]],"barrels":{"rows":[2,6],"n":6,"hp":3}},{"moves":28,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[3,5],"n":6,"hp":1},"rskin":"hielo"}],"aconcagua":[{"moves":24,"types":6,"goals":[[3,24],[5,22]]},{"moves":20,"types":6,"goals":[["floor",20],["fog",10]],"floor":{"rows":[3,7],"n":20,"hp":1},"fskin":"nieve","fog":{"rows":[0,3],"n":10},"special":"viento"},{"moves":24,"types":6,"goals":[["fog",20],["barrel",3]],"fog":{"rows":[1,5],"n":20},"barrels":{"rows":[5,6],"n":3,"hp":3}},{"moves":26,"types":6,"goals":[["drop",2],["floor",12]],"drop":{"n":2,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"cristo":[{"moves":22,"types":6,"goals":[[3,24],[5,24]]},{"moves":26,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"hielo"},{"moves":25,"types":6,"goals":[["barrel",4],["fog",18]],"barrels":{"rows":[3,6],"n":4,"hp":3},"fog":{"rows":[0,4],"n":18}},{"moves":30,"types":6,"goals":[["drop",3],["floor",12]],"drop":{"n":3,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"manzano":[{"moves":23,"types":6,"goals":[[0,24],[1,22]]},{"moves":20,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":22,"types":6,"goals":[["weed",6]],"weeds":{"rows":[5,7],"n":6}},{"moves":20,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"special":"noche"}],"diamante":[{"moves":23,"types":6,"goals":[[2,26],[5,22],[3,16]]},{"moves":18,"types":6,"goals":[["rock",14],[2,12]],"rocks":{"rows":[2,6],"n":14,"hp":1},"rskin":"piedra"},{"moves":20,"types":6,"goals":[["weed",8]],"weeds":{"rows":[4,7],"n":8}},{"moves":26,"types":6,"goals":[["drop",2],["weed",4]],"drop":{"n":2,"start":1},"weeds":{"rows":[6,7],"n":4}}],"uco":[{"moves":26,"types":6,"goals":[[0,30],[1,20]]},{"moves":26,"types":6,"goals":[["floor",26],[0,12]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"tierra"},{"moves":25,"types":6,"goals":[["weed",6],["wire",6]],"weeds":{"rows":[5,7],"n":6},"wire":{"rows":[1,4],"n":6}},{"moves":30,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"atuel":[{"moves":24,"types":6,"goals":[[3,24],[4,24],[5,18]]},{"moves":24,"types":6,"goals":[["rock",12]],"rocks":{"rows":[2,7],"n":12,"hp":2},"rskin":"piedra","special":"octavio"},{"moves":20,"types":6,"goals":[["weed",10]],"weeds":{"rows":[3,7],"n":10}},{"moves":30,"types":6,"goals":[["drop",2],["floor",14]],"drop":{"n":2,"start":1},"floor":{"rows":[4,7],"n":14,"hp":1},"fskin":"arena"}],"reyunos":[{"moves":26,"types":6,"goals":[[4,30],[2,26]]},{"moves":24,"types":6,"goals":[["floor",26]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"arena"},{"moves":26,"types":6,"goals":[["weed",6],["fog",12]],"weeds":{"rows":[5,7],"n":6},"fog":{"rows":[0,3],"n":12}},{"moves":27,"types":6,"goals":[["drop",3],["weed",4]],"drop":{"n":3,"start":1},"weeds":{"rows":[6,7],"n":4}}],"caverna":[{"moves":26,"types":6,"goals":[[3,28],[1,24]]},{"moves":25,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"piedra"},{"moves":21,"types":6,"goals":[["water",4]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"tierra","water":{"src":[3]}},{"moves":24,"types":6,"goals":[["drop",2],["fog",10]],"drop":{"n":2,"start":1},"fog":{"rows":[2,5],"n":10},"special":"linterna"}],"pincheira":[{"moves":24,"types":6,"goals":[[5,28],[2,26]]},{"moves":24,"types":6,"goals":[["floor",26]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"polvo"},{"moves":22,"types":6,"goals":[["water",5]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"polvo","water":{"src":[0]}},{"moves":26,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"llancanelo":[{"moves":25,"types":6,"goals":[[0,26],[3,22]]},{"moves":21,"types":6,"goals":[["floor",28]],"floor":{"rows":[1,7],"n":28,"hp":1},"fskin":"arena"},{"moves":22,"types":6,"goals":[["water",6]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"arena","water":{"src":[2,4]}},{"moves":28,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"payunia":[{"moves":25,"types":6,"goals":[[0,26],[3,26],[5,22]]},{"moves":24,"types":6,"goals":[["rock",10],["floor",18]],"rocks":{"rows":[2,5],"n":10,"hp":2},"rskin":"lava","floor":{"rows":[3,7],"n":18,"hp":1},"fskin":"ceniza","special":"llave"},{"moves":20,"types":6,"goals":[["water",4]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"ceniza","water":{"src":[3]}},{"moves":30,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[4,7],"n":6,"hp":1},"rskin":"lava"}],"guanacache":[{"moves":27,"types":6,"goals":[[2,30],[4,26]]},{"moves":25,"types":6,"goals":[["floor",28]],"floor":{"rows":[1,7],"n":28,"hp":1},"fskin":"arena"},{"moves":26,"types":6,"goals":[["water",5]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"arena","water":{"src":[1,5]}},{"moves":30,"types":6,"goals":[["drop",2],["weed",4]],"drop":{"n":2,"start":1},"weeds":{"rows":[6,7],"n":4}}],"epilogo":[{"moves":25,"types":6,"goals":[[0,26],[1,24]]},{"moves":24,"types":6,"goals":[["floor",30]],"floor":{"rows":[1,7],"n":30,"hp":1},"fskin":"tierra"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}},{"moves":26,"types":6,"goals":[["water",6]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"tierra","water":{"src":[3]},"special":"final"}]};
+const LEVELS = {"prologo":[{"moves":14,"types":5,"goals":[[2,14],[1,14]]},{"moves":16,"types":5,"goals":[["floor",16]],"floor":{"rows":[4,7],"n":16,"hp":1},"fskin":"polvo"},{"moves":16,"types":5,"goals":[["wire",4],[0,12]],"wire":{"rows":[3,5],"n":4}},{"moves":18,"types":5,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"finca":[{"moves":16,"types":5,"goals":[[0,20],[2,18]]},{"moves":16,"types":5,"goals":[["floor",24]],"floor":{"rows":[3,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":17,"types":5,"goals":[["wire",6],[2,14]],"wire":{"rows":[2,6],"n":6}},{"moves":20,"types":5,"goals":[["drop",2],[0,10]],"drop":{"n":2,"start":1}}],"ruinas":[{"moves":17,"types":5,"goals":[[3,22],[4,22]]},{"moves":13,"types":5,"goals":[["rock",12],[3,14]],"rocks":{"rows":[3,6],"n":12,"hp":1},"rskin":"ladrillo","special":"reloj"},{"moves":18,"types":5,"goals":[["wire",8],[4,16]],"wire":{"rows":[2,6],"n":8}},{"moves":18,"types":5,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[5,7],"n":8,"hp":1},"rskin":"ladrillo"}],"plaza":[{"moves":17,"types":5,"goals":[[2,24],[4,20]]},{"moves":18,"types":5,"goals":[["floor",22],[2,10]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":19,"types":5,"goals":[["wire",9],["floor",8]],"wire":{"rows":[1,5],"n":9},"floor":{"rows":[6,7],"n":8,"hp":1},"fskin":"polvo"},{"moves":20,"types":5,"goals":[["drop",2],[2,12]],"drop":{"n":2,"start":1}}],"parque":[{"moves":19,"types":5,"goals":[[2,26],[1,22]]},{"moves":19,"types":5,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":20,"types":5,"goals":[["wire",10],[1,14]],"wire":{"rows":[1,6],"n":10}},{"moves":17,"types":5,"goals":[["drop",2],["wire",4]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":4},"special":"octavio"}],"cerro":[{"moves":21,"types":6,"goals":[[1,20],[5,18]]},{"moves":21,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["wire",10],["floor",10]],"wire":{"rows":[1,5],"n":10},"floor":{"rows":[5,7],"n":10,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"bodega":[{"moves":22,"types":6,"goals":[[0,24],[5,20]]},{"moves":22,"types":6,"goals":[["rock",12],[0,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"ladrillo"},{"moves":25,"types":6,"goals":[["wire",12],[0,14]],"wire":{"rows":[1,6],"n":12}},{"moves":27,"types":6,"goals":[["drop",2],["wire",6]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":6}}],"villavicencio":[{"moves":20,"types":6,"goals":[[5,18],[0,18],[3,14]]},{"moves":18,"types":6,"goals":[["rock",12],[5,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"piedra","special":"octavio"},{"moves":22,"types":6,"goals":[["barrel",4],[1,14]],"barrels":{"rows":[3,6],"n":4,"hp":3}},{"moves":25,"types":6,"goals":[["drop",2],["floor",10]],"drop":{"n":2,"start":1},"floor":{"rows":[6,7],"n":10,"hp":1},"fskin":"tierra"}],"cacheuta":[{"moves":23,"types":6,"goals":[[2,24],[4,20]]},{"moves":22,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":18,"types":6,"goals":[["fog",30],[0,14]],"fog":{"rows":[0,6],"n":30}},{"moves":27,"types":6,"goals":[["drop",2],["fog",10]],"drop":{"n":2,"start":1},"fog":{"rows":[3,7],"n":10}}],"potrerillos":[{"moves":25,"types":6,"goals":[[2,26],[4,16]]},{"moves":24,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":24,"types":6,"goals":[["barrel",4],["fog",14]],"barrels":{"rows":[4,6],"n":4,"hp":3},"fog":{"rows":[1,4],"n":14}},{"moves":23,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"special":"agua"}],"uspallata":[{"moves":26,"types":6,"goals":[[1,26],[3,22]]},{"moves":19,"types":6,"goals":[["rock",14],[2,12]],"rocks":{"rows":[2,6],"n":14,"hp":1},"rskin":"ladrillo"},{"moves":15,"types":6,"goals":[["fog",30]],"fog":{"rows":[0,7],"n":30}},{"moves":26,"types":6,"goals":[["drop",2],["barrel",3]],"drop":{"n":2,"start":1},"barrels":{"rows":[4,6],"n":3,"hp":3}}],"puente":[{"moves":22,"types":6,"goals":[[0,22],[2,22],[1,14]]},{"moves":22,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"nieve"},{"moves":24,"types":6,"goals":[["barrel",6]],"barrels":{"rows":[2,6],"n":6,"hp":3}},{"moves":28,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[3,5],"n":6,"hp":1},"rskin":"hielo"}],"aconcagua":[{"moves":24,"types":6,"goals":[[3,24],[5,22]]},{"moves":20,"types":6,"goals":[["floor",20],["fog",10]],"floor":{"rows":[3,7],"n":20,"hp":1},"fskin":"nieve","fog":{"rows":[0,3],"n":10},"special":"viento"},{"moves":24,"types":6,"goals":[["fog",20],["barrel",3]],"fog":{"rows":[1,5],"n":20},"barrels":{"rows":[5,6],"n":3,"hp":3}},{"moves":26,"types":6,"goals":[["drop",2],["floor",12]],"drop":{"n":2,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"cristo":[{"moves":22,"types":6,"goals":[[3,24],[5,24]]},{"moves":26,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"hielo"},{"moves":25,"types":6,"goals":[["barrel",4],["fog",18]],"barrels":{"rows":[3,6],"n":4,"hp":3},"fog":{"rows":[0,4],"n":18}},{"moves":30,"types":6,"goals":[["drop",3],["floor",12]],"drop":{"n":3,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"manzano":[{"moves":23,"types":6,"goals":[[0,24],[1,22]]},{"moves":20,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":22,"types":6,"goals":[["weed",6]],"weeds":{"rows":[5,7],"n":6}},{"moves":20,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"special":"noche"}],"diamante":[{"moves":23,"types":6,"goals":[[2,26],[5,22],[3,16]]},{"moves":18,"types":6,"goals":[["rock",14],[2,12]],"rocks":{"rows":[2,6],"n":14,"hp":1},"rskin":"piedra"},{"moves":20,"types":6,"goals":[["weed",8]],"weeds":{"rows":[4,7],"n":8}},{"moves":26,"types":6,"goals":[["drop",2],["weed",4]],"drop":{"n":2,"start":1},"weeds":{"rows":[6,7],"n":4}}],"uco":[{"moves":26,"types":6,"goals":[[0,30],[1,20]]},{"moves":26,"types":6,"goals":[["floor",26],[0,12]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"tierra"},{"moves":25,"types":6,"goals":[["weed",6],["wire",6]],"weeds":{"rows":[5,7],"n":6},"wire":{"rows":[1,4],"n":6}},{"moves":30,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"atuel":[{"moves":24,"types":6,"goals":[[3,24],[4,24],[5,18]]},{"moves":24,"types":6,"goals":[["rock",12]],"rocks":{"rows":[2,7],"n":12,"hp":2},"rskin":"piedra","special":"octavio"},{"moves":20,"types":6,"goals":[["weed",10]],"weeds":{"rows":[3,7],"n":10}},{"moves":30,"types":6,"goals":[["drop",2],["floor",14]],"drop":{"n":2,"start":1},"floor":{"rows":[4,7],"n":14,"hp":1},"fskin":"arena"}],"reyunos":[{"moves":26,"types":6,"goals":[[4,30],[2,26]]},{"moves":24,"types":6,"goals":[["floor",26]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"arena"},{"moves":26,"types":6,"goals":[["weed",6],["fog",12]],"weeds":{"rows":[5,7],"n":6},"fog":{"rows":[0,3],"n":12}},{"moves":27,"types":6,"goals":[["drop",3],["weed",4]],"drop":{"n":3,"start":1},"weeds":{"rows":[6,7],"n":4}}],"caverna":[{"moves":26,"types":6,"goals":[[3,28],[1,24]]},{"moves":25,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"piedra"},{"moves":21,"types":6,"goals":[["water",4]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"tierra","water":{"src":[3]}},{"moves":24,"types":6,"goals":[["drop",2],["fog",10]],"drop":{"n":2,"start":1},"fog":{"rows":[2,5],"n":10},"special":"linterna"}],"pincheira":[{"moves":24,"types":6,"goals":[[5,28],[2,26]]},{"moves":24,"types":6,"goals":[["floor",26]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"polvo"},{"moves":22,"types":6,"goals":[["water",5]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"polvo","water":{"src":[0]}},{"moves":26,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"llancanelo":[{"moves":25,"types":6,"goals":[[0,26],[3,22]]},{"moves":21,"types":6,"goals":[["floor",28]],"floor":{"rows":[1,7],"n":28,"hp":1},"fskin":"arena"},{"moves":22,"types":6,"goals":[["water",6]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"arena","water":{"src":[2,4]}},{"moves":28,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"payunia":[{"moves":25,"types":6,"goals":[[0,26],[3,26],[5,22]]},{"moves":24,"types":6,"goals":[["rock",10],["floor",18]],"rocks":{"rows":[2,5],"n":10,"hp":2},"rskin":"lava","floor":{"rows":[3,7],"n":18,"hp":1},"fskin":"ceniza","special":"llave"},{"moves":20,"types":6,"goals":[["water",4]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"ceniza","water":{"src":[3]}},{"moves":30,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[4,7],"n":6,"hp":1},"rskin":"lava"}],"guanacache":[{"moves":27,"types":6,"goals":[[2,30],[4,26]]},{"moves":25,"types":6,"goals":[["floor",28]],"floor":{"rows":[1,7],"n":28,"hp":1},"fskin":"arena"},{"moves":26,"types":6,"goals":[["water",5]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"arena","water":{"src":[1,5]}},{"moves":30,"types":6,"goals":[["drop",2],["weed",4]],"drop":{"n":2,"start":1},"weeds":{"rows":[6,7],"n":4}}],"epilogo":[{"moves":25,"types":6,"goals":[[0,26],[1,24]]},{"moves":24,"types":6,"goals":[["floor",30]],"floor":{"rows":[1,7],"n":30,"hp":1},"fskin":"tierra"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}},{"moves":26,"types":6,"goals":[["water",6]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"tierra","water":{"src":[3]},"special":"final"}]};
 const FLOOR_SKIN = {
   tierra: { name: 'tierra seca', color: '#8a5a34', dot: '#5e3a1e' }, nieve: { name: 'nieve', color: '#eef6ff', dot: '#b9d4ec' },
   arena: { name: 'arena', color: '#e2c48a', dot: '#b8955a' }, polvo: { name: 'polvo', color: '#c9b38a', dot: '#9c8460' },
@@ -2405,6 +2442,7 @@ class BoardScene extends Phaser.Scene {
     }
     if (cfg.pre && cfg.pre.length) placeSpecials(this.g, cfg.pre, this.rand);
     this.fog = setupFog(this.lv, this.rand);
+    if (!findVisibleMove(this.g, this.fog)) reshuffleVisible(this.g, this.fog, this.rand);
     this.wet = this.lv.water ? flowWater(this.floor, this.lv.water.src).wet : null;
     this.syncState();
     this.drawFloor();
@@ -2495,7 +2533,7 @@ class BoardScene extends Phaser.Scene {
     if (this.hintTimer) this.hintTimer.remove();
     this.hintTimer = this.time.delayedCall(6000, () => {
       if (this.busy || this.ended || this.tool) return;
-      const m = findMove(this.g);
+      const m = findVisibleMove(this.g, this.fog);
       if (!m) return;
       m.forEach(([r, c]) => { const s = this.sprites[r][c]; if (s) this.tweens.add({ targets: s, angle: { from: -10, to: 10 }, duration: 110, yoyo: true, repeat: 3, onComplete: () => s.setAngle(0) }); });
       this.armHint();
@@ -2659,12 +2697,42 @@ class BoardScene extends Phaser.Scene {
       this.cfg.onEnd(false);
       return;
     }
-    if (!findMove(this.g)) {
-      reshuffle(this.g, this.rand);
-      await this.redraw();
-    }
+    await this.ensureMove();
     this.busy = false;
     this.armHint();
+  }
+
+  // Siempre tiene que quedar una jugada que se vea. Si la niebla las tapa todas, se mezclan las fichas visibles;
+  // si aun así no hay, se despeja la niebla de una jugada. Si la maleza dejó el tablero trabado, se arranca una.
+  async ensureMove() {
+    const hasFog = this.fog && this.fog.some((row) => row.some((v) => v > 0));
+    if (findVisibleMove(this.g, this.fog)) return;
+    if (hasFog && findMove(this.g)) {
+      if (reshuffleVisible(this.g, this.fog, this.rand)) { await this.redraw(); return; }
+      const m = findMove(this.g);
+      const cells = new Set();
+      m.forEach(([r, c]) => { cells.add(K(r, c)); });
+      swapCells(this.g, m[0], m[1]);
+      for (const run of [...findRuns(this.g), ...findSquares(this.g)]) if (run.cells.some(([a, b]) => m.some(([r, c]) => r === a && c === b))) run.cells.forEach(([a, b]) => cells.add(K(a, b)));
+      swapCells(this.g, m[0], m[1]);
+      let n = 0;
+      cells.forEach((k) => { const [r, c] = RC(k); if (this.fog[r][c]) { this.fog[r][c] = 0; n++; this.clearFog(k, n * 60); } });
+      const fg = this.state.goals.find((g) => g.t === 'fog'); if (fg) fg.got += n;
+      this.cfg.onUpdate(this.state);
+      await this.wait(500);
+      return;
+    }
+    for (let i = 0; i < 6 && !findMove(this.g); i++) {
+      if (reshuffle(this.g, this.rand)) break;
+      const w = [];
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (this.g[r][c].t === WEED) w.push([r, c]);
+      if (!w.length) break;
+      const [r, c] = w[Math.floor(this.rand() * w.length)];
+      this.g[r][c] = { t: Math.floor(this.rand() * this.cfg.types), s: null };
+    }
+    this.syncState(); this.cfg.onUpdate(this.state);
+    await this.redraw();
+    if (hasFog && !findVisibleMove(this.g, this.fog)) await this.ensureMove();
   }
 
   // Jugadas que sobran: se vuelven Zondas que barren el tablero
