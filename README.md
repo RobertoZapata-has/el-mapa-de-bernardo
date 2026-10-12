@@ -8,10 +8,11 @@ Se puede instalar en el celular con el botón "Instalar en el celular" de la por
 
 ## Capítulos
 
-El juego crece hacia 100 niveles en 4 actos. El Acto 1 (la ciudad) ya está completo, con 4 niveles por lugar; los lugares que siguen todavía tienen 3 niveles cada uno hasta que se arme su acto.
+100 niveles en 25 lugares y 4 actos, con 4 niveles por lugar.
 
 | # | Lugar | Objeto |
 |---|---|---|
+| | **Acto 1 · La ciudad** | |
 | Prólogo | Córdoba | La gorra de oficial |
 | 1 | El olivo de Bernardo, Maipú | El cuaderno de Bernardo |
 | 2 | Ruinas de San Francisco | El mapa completo |
@@ -19,13 +20,27 @@ El juego crece hacia 100 niveles en 4 actos. El Acto 1 (la ciudad) ya está comp
 | 4 | Parque y Lago | La entrada de la Vendimia |
 | 5 | Cerro de la Gloria | Primer fragmento |
 | 6 | Bodega en Chacras de Coria | El corcho de la barrica 1974 |
+| | **Acto 2 · La cordillera** | |
 | 7 | Villavicencio | Segundo fragmento |
-| 8 | Potrerillos | Tercer fragmento |
-| 9 | El Trasandino, Puente del Inca | El boleto del Trasandino |
-| 10 | Cristo Redentor | Cuarto fragmento |
-| 11 | Valle de Uco | Quinto fragmento |
-| 12 | Cañón del Atuel | Sexto fragmento |
-| Final | La Payunia, Malargüe | La Llave del Agua |
+| 8 | Termas de Cacheuta | El termo de Roberto |
+| 9 | Potrerillos | Tercer fragmento |
+| 10 | Uspallata, las Bóvedas | La nota de Octavio |
+| 11 | El Trasandino | El boleto del Trasandino |
+| 12 | Laguna de Horcones, Aconcagua | La brújula de Roberto |
+| 13 | Cristo Redentor | Cuarto fragmento |
+| | **Acto 3 · El valle** | |
+| 14 | Manzano Histórico | La foto de los tres hijos |
+| 15 | Laguna del Diamante | La piedra que flota |
+| 16 | Valle de Uco | Quinto fragmento |
+| 17 | Cañón del Atuel | Sexto fragmento |
+| 18 | Los Reyunos | La servilleta del acuerdo |
+| | **Acto 4 · El origen** | |
+| 19 | Caverna de las Brujas | El farol de minero |
+| 20 | Castillos de Pincheira | La herradura vieja |
+| 21 | Laguna de Llancanelo | La pluma de flamenco |
+| 22 | La Payunia (la carta) | La Llave del Agua |
+| 23 | Lagunas de Guanacache | La balsa de totora |
+| Epílogo | El olivo, otra vez | La foto de los dos abuelos |
 
 ## Cómo está hecho
 
@@ -38,16 +53,24 @@ El juego crece hacia 100 niveles en 4 actos. El Acto 1 (la ciudad) ya está comp
 
 ## Niveles
 
-Cada lugar del Acto 1 tiene 4 niveles:
+Cada lugar tiene 4 niveles:
 
 1. **Juntar fichas.** Empieza con la escena de llegada.
-2. **El obstáculo del lugar:** suelo para limpiar (tierra seca, arena, nieve, polvo, ceniza) o piedras para romper (ladrillos, piedras, hielo, piedras volcánicas; algunas necesitan dos golpes).
-3. **Alambre de viña:** fichas atadas que no se mueven ni caen y frenan a las de arriba (las vecinas bajan en diagonal). Se sueltan al juntarlas o al alcanzarlas con un booster.
+2. **El obstáculo del lugar:** suelo para limpiar (tierra seca, arena, nieve, polvo, ceniza) o piedras para romper.
+3. **Lo nuevo de cada acto:**
+   - Acto 1, **alambre de viña:** fichas atadas que no se mueven ni caen; se sueltan al juntarlas.
+   - Acto 2, **barriles y niebla:** los barriles aguantan 3 golpes y sueltan monedas; la niebla tapa casillas hasta que rompés algo al lado.
+   - Acto 3, **maleza:** no se mueve y, si en una jugada no rompés ninguna, crece sobre una ficha vecina.
+   - Acto 4, **acequias:** el agua entra por arriba y corre por donde no hay tierra; hay que abrirle camino hasta abajo.
 4. **Bajar la cajita de Bernardo** hasta la fila de abajo. Al ganarlo se consigue el objeto del lugar y sigue la historia.
 
-Cada 10 niveles hay uno **especial**: menos jugadas, una barra de carrera contra el reloj o contra Octavio, y 100 monedas de premio la primera vez que se gana. En el Acto 1 son el nivel 10 (Ruinas, contra el reloj) y el 20 (Parque, contra Octavio).
+Cada 10 niveles hay uno **especial**, con menos jugadas, una barra de carrera y 100 monedas de premio la primera vez: contra el reloj (10), contra Octavio (20, 30 y 70), el agua que sube (40), viento blanco (50), de noche (60), se apaga la linterna (80), armar la Llave (90). El 100 es el último: hacer correr el agua al pie del olivo.
 
-Los niveles están en la constante `LEVELS` dentro de `index.html`. El progreso de quienes ya jugaban se conserva: los lugares terminados siguen terminados y los lugares nuevos aparecen antes en el camino.
+Los niveles están en la constante `LEVELS` dentro de `index.html`. El progreso de quienes ya jugaban se conserva.
+
+## Perfil
+
+Al tocar JUGAR por primera vez, el juego pregunta el nombre, cómo festejarte ("¡Qué genio!", "¡Qué genia!" o "¡Qué crack!") y la edad. El nombre aparece en los festejos y en la portada. La edad queda guardada para el día que el juego tenga publicidad: a los menores de 13 no se les puede mostrar publicidad personalizada. Todo se guarda solo en el celular y se cambia desde Opciones → Tu perfil.
 
 ## Boosters
 
@@ -62,7 +85,7 @@ Se activan tocándolos o deslizándolos. Dos boosters juntos se combinan: Zonda 
 
 ## Pantalla principal y escenas
 
-- El mapa es la pantalla principal y tiene un dibujo por acto (`img/mapa_ciudad.jpg` para el Acto 1, `img/mapa_cordillera.jpg` para lo que sigue). Cada lugar es un punto sobre el dibujo, con el siguiente marcado con "Jugar". Abajo están el Mercado, la Mochila y el Premio del día.
+- El mapa es la pantalla principal y tiene un dibujo por acto (`mapa_ciudad`, `mapa_ruta7`, `mapa_valle` y `mapa_sur`). Cada lugar es un punto sobre el dibujo, con el siguiente marcado con "Jugar". Abajo están el Mercado, la Mochila y el Premio del día.
 - Los diálogos muestran una ilustración de la escena cuando existe la imagen `img/esc_*.jpg` correspondiente (si falta, el diálogo se ve igual que antes).
 - Los boosters tienen efectos grandes que se salen del tablero: zoom al armarlos, el Cóndor que despega fuera de la pantalla, la erupción del Volcán y la Llave con rayos.
 

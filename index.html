@@ -137,6 +137,18 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .race-p.rival{box-shadow:0 0 0 3px #fff6e6,0 0 0 5px #c0392b,0 4px 8px rgba(0,0,0,.5);background-size:cover;background-color:#f6ead2}
 #game.special #board{box-shadow:0 0 0 3px var(--gold),0 0 28px 6px rgba(242,182,50,.45);border-radius:18px}
 #game.special .ch-title{color:var(--gold)}
+#game.night{background:radial-gradient(ellipse at 50% 58%,rgba(10,14,30,.25) 25%,rgba(6,8,20,.85) 72%)}
+.pf-field{display:flex;flex-direction:column;gap:6px;width:100%;text-align:left}
+.pf-field>span{font:800 13px var(--body);color:var(--cream-dim)}
+.pf-field input{appearance:none;width:100%;box-sizing:border-box;border:0;border-radius:12px;padding:12px 14px;font:700 17px var(--body);background:#fff6e6;color:#2b1a12;box-shadow:inset 0 2px 4px rgba(0,0,0,.25)}
+.pf-field input:focus{outline:3px solid var(--gold);outline-offset:1px}
+.pf-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pf-chip{appearance:none;border:0;border-radius:12px;padding:10px 4px;font:800 14px var(--body);background:rgba(255,246,230,.1);color:var(--cream);box-shadow:inset 0 0 0 1.5px rgba(242,182,50,.35);cursor:pointer}
+.pf-chip.on{background:var(--gold);color:#3a2208;box-shadow:0 3px 0 #8a5a10}
+.pf-note{font-size:12px!important;color:var(--cream-dim)!important;margin:0!important}
+.lvl-done{margin-top:-6px!important;font-size:14px!important}
+#card .btn:disabled{opacity:.45}
+#pf-ok,#pf-cancel{width:100%}
 .sp-tag{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(#f2c14e,#d99a1e);color:#3a2208;font:800 13px var(--body);padding:5px 12px 5px 5px;border-radius:999px;box-shadow:0 3px 0 #8a5a10}
 .sp-tag img{width:28px;height:28px;border-radius:50%;object-fit:cover;background:#fff6e6}
 .prize-note{font-size:13px!important;color:var(--gold)!important;margin-top:-4px!important}
@@ -422,9 +434,13 @@ const RC = (k) => [Math.floor(k / COLS), k % COLS];
 // Obstáculos: piedra (t = -2, con vida hp) y la cajita que hay que bajar (t = -3).
 // El suelo (tierra seca, nieve, ceniza...) va en una grilla aparte: floor[r][c] = capas que faltan limpiar.
 // Alambre de viña: una ficha con w = 1 está atada. No se puede mover ni cae; se suelta (y se queda) cuando la juntás o la alcanza un booster.
-const ROCK = -2, ITEM = -3;
+// Barril: es una piedra con k = 'barril' y 3 golpes; al romperse suelta monedas.
+// Maleza (t = -5): no se mueve ni cae, se rompe como una piedra y, si en una jugada no rompiste ninguna, crece a una ficha vecina.
+// Niebla: grilla aparte (fog). Tapa la casilla hasta que se rompe algo en ella o al lado.
+// Acequia: el agua entra por arriba (lv.water.src) y corre hacia abajo y a los costados por las casillas sin tierra (floor = 0).
+const ROCK = -2, ITEM = -3, WEED = -5;
 const isSpecial = (p) => !!(p && p.s);
-const fixed = (p) => !!(p && p.w);
+const fixed = (p) => !!(p && (p.w || p.t === WEED));
 
 function findRuns(g) {
   const out = [];
@@ -504,7 +520,8 @@ function pickTarget(g, r, c, ctx, taken) {
     if ((rr === r && cc === c) || taken.has(k)) continue;
     const q = g[rr][cc];
     if (!q || q.t === ITEM) continue;
-    const wanted = (q.t >= 0 && ctx.prefer && ctx.prefer.has(q.t)) || (ctx.rock && q.t === ROCK) || (ctx.floor && ctx.floor[rr][cc] > 0) || (ctx.wire && q.w);
+    const wanted = (q.t >= 0 && ctx.prefer && ctx.prefer.has(q.t)) || (ctx.rock && q.t === ROCK && !q.k) || (ctx.barrel && q.k === 'barril') || (ctx.weed && q.t === WEED)
+      || (ctx.floor && ctx.floor[rr][cc] > 0 && (!ctx.front || ctx.front.has(k))) || (ctx.wire && q.w) || (ctx.fog && ctx.fog[rr][cc] > 0);
     if (wanted) pref.push(k); else any.push(k);
   }
   const list = pref.length ? pref : any;
@@ -619,7 +636,7 @@ function resolveStep(g, swapPos, ctx) {
     const [r, c] = RC(k);
     for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const rr = r + dr, cc = c + dc;
-      if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS && g[rr][cc] && g[rr][cc].t === ROCK) hits.push(K(rr, cc));
+      if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS && g[rr][cc] && (g[rr][cc].t === ROCK || g[rr][cc].t === WEED)) hits.push(K(rr, cc));
     }
   });
   hits.forEach((k) => clear.add(k));
@@ -694,8 +711,8 @@ function activateSwap(g, a, b, ctx) {
   return pack(clear, [], fx);
 }
 
-function applyClear(g, res, floor) {
-  const got = {}, removed = [], damaged = [], floorHit = [], unwired = [];
+function applyClear(g, res, floor, fog) {
+  const got = {}, removed = [], damaged = [], floorHit = [], unwired = [], fogHit = [];
   const add = (key) => { got[key] = (got[key] || 0) + 1; };
   const scrub = (r, c) => { if (floor && floor[r][c] > 0) { floor[r][c]--; add('floor'); floorHit.push(K(r, c)); } };
   for (const k of res.clear) {
@@ -706,8 +723,9 @@ function applyClear(g, res, floor) {
     if (p.t === ROCK) {
       p.hp--;
       if (p.hp > 0) { damaged.push(k); continue; }
-      add('rock');
-    } else if (p.t >= 0) add(p.t);
+      if (p.k === 'barril') { add('barrel'); add('coin'); } else add('rock');
+    } else if (p.t === WEED) add('weed');
+    else if (p.t >= 0) add(p.t);
     scrub(r, c);
     g[r][c] = null;
     removed.push(k);
@@ -716,7 +734,56 @@ function applyClear(g, res, floor) {
     if (fixed(g[o.r][o.c])) { add('wire'); unwired.push(K(o.r, o.c)); }
     g[o.r][o.c] = o.piece; scrub(o.r, o.c);
   }
-  return { got, removed, damaged, floorHit, unwired };
+  if (fog) {
+    const touched = [...removed, ...damaged, ...unwired, ...res.created.map((o) => K(o.r, o.c))];
+    for (const k of touched) {
+      const [r, c] = RC(k);
+      for (const [dr, dc] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const rr = r + dr, cc = c + dc;
+        if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS && fog[rr][cc] > 0) { fog[rr][cc] = 0; add('fog'); fogHit.push(K(rr, cc)); }
+      }
+    }
+  }
+  return { got, removed, damaged, floorHit, unwired, fogHit };
+}
+
+// La maleza crece: una ficha común al lado de una maleza se vuelve maleza
+function growWeed(g, rand) {
+  const opts = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const p = g[r][c];
+    if (!p || p.t < 0 || p.s || p.w) continue;
+    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dr, dc]) => { const q = g[r + dr] && g[r + dr][c + dc]; return q && q.t === WEED; })) opts.push([r, c]);
+  }
+  if (!opts.length) return null;
+  const [r, c] = opts[Math.floor(rand() * opts.length)];
+  g[r][c] = { t: WEED };
+  return [r, c];
+}
+
+// El agua de la acequia: desde las bocas de arriba corre hacia abajo y a los costados por donde no hay tierra
+function flowWater(floor, src) {
+  const wet = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  const q = [];
+  for (const c of src) if (floor[0][c] === 0) { wet[0][c] = 1; q.push([0, c]); }
+  while (q.length) {
+    const [r, c] = q.shift();
+    for (const [dr, dc] of [[1, 0], [0, 1], [0, -1]]) {
+      const rr = r + dr, cc = c + dc;
+      if (rr < ROWS && cc >= 0 && cc < COLS && !wet[rr][cc] && floor[rr][cc] === 0) { wet[rr][cc] = 1; q.push([rr, cc]); }
+    }
+  }
+  const bottom = wet[ROWS - 1].reduce((a, b) => a + b, 0);
+  return { wet, bottom };
+}
+// Casillas de tierra que tocan el agua (adonde conviene apuntar)
+function waterFront(floor, wet) {
+  const out = new Set();
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (!floor[r][c]) continue;
+    if ((r === 0) || [[-1, 0], [0, 1], [0, -1]].some(([dr, dc]) => wet[r + dr] && wet[r + dr][c + dc])) out.add(K(r, c));
+  }
+  return out;
 }
 
 // La cajita que llegó a la fila de abajo se cobra
@@ -748,6 +815,9 @@ function setupObstacles(g, lv, rand) {
   const used = new Set();
   if (lv.rocks) pickCells(lv.rocks, rand).forEach(([r, c]) => { g[r][c] = { t: ROCK, hp: lv.rocks.hp || 1 }; used.add(K(r, c)); });
   if (lv.wire) pickCells(lv.wire, rand, used).forEach(([r, c]) => { if (g[r][c].t >= 0 && !g[r][c].s) { g[r][c].w = 1; used.add(K(r, c)); } });
+  if (lv.barrels) pickCells(lv.barrels, rand, used).forEach(([r, c]) => { g[r][c] = { t: ROCK, hp: lv.barrels.hp || 3, k: 'barril' }; used.add(K(r, c)); });
+  if (lv.weeds) pickCells(lv.weeds, rand, used).forEach(([r, c]) => { g[r][c] = { t: WEED }; used.add(K(r, c)); });
+  if (lv.water) { for (const c of lv.water.src) floor[0][c] = 0; }
   if (lv.drop) {
     const cols = [1, 2, 3, 4, 5].filter((c) => !used.has(K(0, c)));
     for (let i = 0; i < Math.min(lv.drop.start || 1, cols.length); i++) {
@@ -756,6 +826,11 @@ function setupObstacles(g, lv, rand) {
     }
   }
   return floor;
+}
+function setupFog(lv, rand) {
+  const fog = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  if (lv.fog) pickCells(lv.fog, rand).forEach(([r, c]) => { fog[r][c] = 1; });
+  return fog;
 }
 
 // Caída: las fichas bajan por su columna. Las atadas con alambre no se mueven y frenan lo que viene de arriba;
@@ -805,7 +880,7 @@ function gravity(g, rand, types) {
   return { moves, spawns };
 }
 
-const movable = (p) => p && p.t !== ROCK && !p.w;
+const movable = (p) => p && p.t !== ROCK && p.t !== WEED && !p.w;
 function swapCells(g, a, b) { const t = g[a[0]][a[1]]; g[a[0]][a[1]] = g[b[0]][b[1]]; g[b[0]][b[1]] = t; }
 
 function findMove(g) {
@@ -871,7 +946,7 @@ function placeSpecials(g, list, rand) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { ROCK, ITEM, fixed, collectDrops, setupObstacles, movable, COLS, ROWS, K, RC, findRuns, findSquares, hasMatch, findGroups, resolveStep, activateAt, activateSwap, applyClear, gravity, swapCells, findMove, newGrid, reshuffle, placeSpecials, mostCommonColor };
+if (typeof module !== 'undefined') module.exports = { ROCK, ITEM, WEED, growWeed, flowWater, waterFront, setupFog, fixed, collectDrops, setupObstacles, movable, COLS, ROWS, K, RC, findRuns, findSquares, hasMatch, findGroups, resolveStep, activateAt, activateSwap, applyClear, gravity, swapCells, findMove, newGrid, reshuffle, placeSpecials, mostCommonColor };
 </script>
 
 <script>
@@ -881,12 +956,17 @@ const SETS = {
     { name: 'Uva', img: 'img/f_uva.png' }, { name: 'Hoja', img: 'img/f_hoja.png' }, { name: 'Gota', img: 'img/f_gota.png' },
     { name: 'Damasco', img: 'img/f_damasco.png' }, { name: 'Sol', img: 'img/f_sol.png' }, { name: 'Canasto', img: 'img/f_canasto.png' },
   ],
+  sur: [
+    { name: 'Pluma', img: 'img/s_pluma.png' }, { name: 'Piedra volcánica', img: 'img/s_lava.png' }, { name: 'Totora', img: 'img/s_totora.png' },
+    { name: 'Cristal', img: 'img/s_cristal.png' }, { name: 'Flor', img: 'img/s_flor.png' }, { name: 'Herradura', img: 'img/s_herradura.png' },
+  ],
   tren: [
     { name: 'Reloj', img: 'img/t_reloj.png' }, { name: 'Farol', img: 'img/t_farol.png' }, { name: 'Valija', img: 'img/t_valija.png' },
     { name: 'Copo de nieve', img: 'img/t_copo.png' }, { name: 'Flor', img: 'img/t_flor.png' }, { name: 'Rueda', img: 'img/t_rueda.png' },
   ],
 };
-const PIECE_COLOR = { finca: ['#9b4fd0', '#5fb33f', '#45b6f0', '#f59a3c', '#ffd23a', '#d9a35a'], tren: ['#f0c24a', '#e04a3a', '#a86a3c', '#bfe8ff', '#f06aa0', '#c0c6ce'] };
+const PIECE_COLOR = { finca: ['#9b4fd0', '#5fb33f', '#45b6f0', '#f59a3c', '#ffd23a', '#d9a35a'], tren: ['#f0c24a', '#e04a3a', '#a86a3c', '#bfe8ff', '#f06aa0', '#c0c6ce'],
+  sur: ['#f48fb1', '#ff7a2a', '#d4a843', '#9fe3ff', '#ffd23a', '#c0c6ce'] };
 const SPECIAL_IMG = { h: 'img/b_zonda.png', v: 'img/b_zonda.png', c: 'img/b_condor.png', o: 'img/b_volcan.png', b: 'img/p_llave.png' };
 const GLOW = { h: '255,236,180', v: '255,236,180', c: '175,215,255', o: '255,150,70', b: '255,214,90' };
 const IMG = {};
@@ -895,12 +975,13 @@ function loadImg(src) {
 }
 const FLOOR_KINDS = ['tierra', 'nieve', 'arena', 'polvo', 'ceniza'];
 const imagesReady = Promise.all([...Object.values(SETS).flat().map((p) => p.img), ...new Set(Object.values(SPECIAL_IMG)), 'img/ui_cofre.png', 'img/alambre.png',
+  'img/barril.png', 'img/maleza.png', 'img/niebla.png', 'img/agua.png',
   ...['piedra', 'ladrillo', 'hielo', 'lava'].map((k) => `img/rock_${k}.png`), ...FLOOR_KINDS.map((k) => `img/suelo_${k}.png`)].map(loadImg));
 
 /* ===== Niveles de cada lugar ===== */
 // 1: juntar fichas. 2: obstáculo del lugar. 3: la mecánica del acto (en el Acto 1, el alambre de viña). Último: bajar la cajita de Bernardo.
-// Los lugares que todavía no tienen su acto nuevo siguen con 3 niveles. special: nivel especial (cada 10), contra el reloj o contra Octavio.
-const LEVELS = {"prologo":[{"moves":14,"types":5,"goals":[[2,14],[1,14]]},{"moves":16,"types":5,"goals":[["floor",16]],"floor":{"rows":[4,7],"n":16,"hp":1},"fskin":"polvo"},{"moves":16,"types":5,"goals":[["wire",4],[0,12]],"wire":{"rows":[3,5],"n":4}},{"moves":18,"types":5,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"finca":[{"moves":16,"types":5,"goals":[[0,20],[2,18]]},{"moves":16,"types":5,"goals":[["floor",24]],"floor":{"rows":[3,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":17,"types":5,"goals":[["wire",6],[2,14]],"wire":{"rows":[2,6],"n":6}},{"moves":20,"types":5,"goals":[["drop",2],[0,10]],"drop":{"n":2,"start":1}}],"ruinas":[{"moves":17,"types":5,"goals":[[3,22],[4,22]]},{"moves":13,"types":5,"goals":[["rock",12],[3,14]],"rocks":{"rows":[3,6],"n":12,"hp":1},"rskin":"ladrillo","special":"reloj"},{"moves":18,"types":5,"goals":[["wire",8],[4,16]],"wire":{"rows":[2,6],"n":8}},{"moves":18,"types":5,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[5,7],"n":8,"hp":1},"rskin":"ladrillo"}],"plaza":[{"moves":17,"types":5,"goals":[[2,24],[4,20]]},{"moves":18,"types":5,"goals":[["floor",22],[2,10]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":19,"types":5,"goals":[["wire",9],["floor",8]],"wire":{"rows":[1,5],"n":9},"floor":{"rows":[6,7],"n":8,"hp":1},"fskin":"polvo"},{"moves":20,"types":5,"goals":[["drop",2],[2,12]],"drop":{"n":2,"start":1}}],"parque":[{"moves":19,"types":5,"goals":[[2,26],[1,22]]},{"moves":19,"types":5,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":20,"types":5,"goals":[["wire",10],[1,14]],"wire":{"rows":[1,6],"n":10}},{"moves":17,"types":5,"goals":[["drop",2],["wire",4]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":4},"special":"octavio"}],"cerro":[{"moves":21,"types":6,"goals":[[1,20],[5,18]]},{"moves":21,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["wire",10],["floor",10]],"wire":{"rows":[1,5],"n":10},"floor":{"rows":[5,7],"n":10,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"bodega":[{"moves":22,"types":6,"goals":[[0,24],[5,20]]},{"moves":22,"types":6,"goals":[["rock",12],[0,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"ladrillo"},{"moves":25,"types":6,"goals":[["wire",12],[0,14]],"wire":{"rows":[1,6],"n":12}},{"moves":27,"types":6,"goals":[["drop",2],["wire",6]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":6}}],"villavicencio":[{"moves":20,"types":6,"goals":[[5,18],[0,18],[3,14]]},{"moves":22,"types":6,"goals":[["rock",12],[5,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"piedra"},{"moves":25,"types":6,"goals":[["drop",2],["floor",10]],"drop":{"n":2,"start":1},"floor":{"rows":[6,7],"n":10,"hp":1},"fskin":"tierra"}],"potrerillos":[{"moves":23,"types":6,"goals":[[2,26],[4,16]]},{"moves":22,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":25,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"puente":[{"moves":22,"types":6,"goals":[[0,22],[2,22],[1,14]]},{"moves":22,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"nieve"},{"moves":26,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[3,5],"n":6,"hp":1},"rskin":"hielo"}],"cristo":[{"moves":22,"types":6,"goals":[[3,24],[5,24]]},{"moves":26,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"hielo"},{"moves":25,"types":6,"goals":[["drop",3],["floor",12]],"drop":{"n":3,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"uco":[{"moves":24,"types":6,"goals":[[0,30],[1,20]]},{"moves":24,"types":6,"goals":[["floor",26],[0,12]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"tierra"},{"moves":26,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"atuel":[{"moves":24,"types":6,"goals":[[3,24],[4,24],[5,18]]},{"moves":27,"types":6,"goals":[["rock",12]],"rocks":{"rows":[2,7],"n":12,"hp":2},"rskin":"piedra"},{"moves":27,"types":6,"goals":[["drop",2],["floor",14]],"drop":{"n":2,"start":1},"floor":{"rows":[4,7],"n":14,"hp":1},"fskin":"arena"}],"payunia":[{"moves":25,"types":6,"goals":[[0,26],[3,26],[5,22]]},{"moves":27,"types":6,"goals":[["rock",10],["floor",18]],"rocks":{"rows":[2,5],"n":10,"hp":2},"rskin":"lava","floor":{"rows":[3,7],"n":18,"hp":1},"fskin":"ceniza"},{"moves":30,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[4,7],"n":6,"hp":1},"rskin":"lava"}]};
+// Acto 1: alambre. Acto 2: barriles y niebla. Acto 3: maleza. Acto 4: acequias. special: nivel especial (cada 10).
+const LEVELS = {"prologo":[{"moves":14,"types":5,"goals":[[2,14],[1,14]]},{"moves":16,"types":5,"goals":[["floor",16]],"floor":{"rows":[4,7],"n":16,"hp":1},"fskin":"polvo"},{"moves":16,"types":5,"goals":[["wire",4],[0,12]],"wire":{"rows":[3,5],"n":4}},{"moves":18,"types":5,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"finca":[{"moves":16,"types":5,"goals":[[0,20],[2,18]]},{"moves":16,"types":5,"goals":[["floor",24]],"floor":{"rows":[3,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":17,"types":5,"goals":[["wire",6],[2,14]],"wire":{"rows":[2,6],"n":6}},{"moves":20,"types":5,"goals":[["drop",2],[0,10]],"drop":{"n":2,"start":1}}],"ruinas":[{"moves":17,"types":5,"goals":[[3,22],[4,22]]},{"moves":13,"types":5,"goals":[["rock",12],[3,14]],"rocks":{"rows":[3,6],"n":12,"hp":1},"rskin":"ladrillo","special":"reloj"},{"moves":18,"types":5,"goals":[["wire",8],[4,16]],"wire":{"rows":[2,6],"n":8}},{"moves":18,"types":5,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[5,7],"n":8,"hp":1},"rskin":"ladrillo"}],"plaza":[{"moves":17,"types":5,"goals":[[2,24],[4,20]]},{"moves":18,"types":5,"goals":[["floor",22],[2,10]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":19,"types":5,"goals":[["wire",9],["floor",8]],"wire":{"rows":[1,5],"n":9},"floor":{"rows":[6,7],"n":8,"hp":1},"fskin":"polvo"},{"moves":20,"types":5,"goals":[["drop",2],[2,12]],"drop":{"n":2,"start":1}}],"parque":[{"moves":19,"types":5,"goals":[[2,26],[1,22]]},{"moves":19,"types":5,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":20,"types":5,"goals":[["wire",10],[1,14]],"wire":{"rows":[1,6],"n":10}},{"moves":17,"types":5,"goals":[["drop",2],["wire",4]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":4},"special":"octavio"}],"cerro":[{"moves":21,"types":6,"goals":[[1,20],[5,18]]},{"moves":21,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["wire",10],["floor",10]],"wire":{"rows":[1,5],"n":10},"floor":{"rows":[5,7],"n":10,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"bodega":[{"moves":22,"types":6,"goals":[[0,24],[5,20]]},{"moves":22,"types":6,"goals":[["rock",12],[0,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"ladrillo"},{"moves":25,"types":6,"goals":[["wire",12],[0,14]],"wire":{"rows":[1,6],"n":12}},{"moves":27,"types":6,"goals":[["drop",2],["wire",6]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":6}}],"villavicencio":[{"moves":20,"types":6,"goals":[[5,18],[0,18],[3,14]]},{"moves":18,"types":6,"goals":[["rock",12],[5,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"piedra","special":"octavio"},{"moves":22,"types":6,"goals":[["barrel",4],[1,14]],"barrels":{"rows":[3,6],"n":4,"hp":3}},{"moves":25,"types":6,"goals":[["drop",2],["floor",10]],"drop":{"n":2,"start":1},"floor":{"rows":[6,7],"n":10,"hp":1},"fskin":"tierra"}],"cacheuta":[{"moves":23,"types":6,"goals":[[2,24],[4,20]]},{"moves":22,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":18,"types":6,"goals":[["fog",30],[0,14]],"fog":{"rows":[0,6],"n":30}},{"moves":27,"types":6,"goals":[["drop",2],["fog",10]],"drop":{"n":2,"start":1},"fog":{"rows":[3,7],"n":10}}],"potrerillos":[{"moves":25,"types":6,"goals":[[2,26],[4,16]]},{"moves":24,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":22,"types":6,"goals":[["barrel",4],["fog",14]],"barrels":{"rows":[4,6],"n":4,"hp":3},"fog":{"rows":[1,4],"n":14}},{"moves":23,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"special":"agua"}],"uspallata":[{"moves":26,"types":6,"goals":[[1,26],[3,22]]},{"moves":19,"types":6,"goals":[["rock",14],[2,12]],"rocks":{"rows":[2,6],"n":14,"hp":1},"rskin":"ladrillo"},{"moves":15,"types":6,"goals":[["fog",30]],"fog":{"rows":[0,7],"n":30}},{"moves":26,"types":6,"goals":[["drop",2],["barrel",3]],"drop":{"n":2,"start":1},"barrels":{"rows":[4,6],"n":3,"hp":3}}],"puente":[{"moves":22,"types":6,"goals":[[0,22],[2,22],[1,14]]},{"moves":22,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"nieve"},{"moves":24,"types":6,"goals":[["barrel",6]],"barrels":{"rows":[2,6],"n":6,"hp":3}},{"moves":28,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[3,5],"n":6,"hp":1},"rskin":"hielo"}],"aconcagua":[{"moves":24,"types":6,"goals":[[3,24],[5,22]]},{"moves":20,"types":6,"goals":[["floor",20],["fog",10]],"floor":{"rows":[3,7],"n":20,"hp":1},"fskin":"nieve","fog":{"rows":[0,3],"n":10},"special":"viento"},{"moves":24,"types":6,"goals":[["fog",20],["barrel",3]],"fog":{"rows":[1,5],"n":20},"barrels":{"rows":[5,6],"n":3,"hp":3}},{"moves":26,"types":6,"goals":[["drop",2],["floor",12]],"drop":{"n":2,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"cristo":[{"moves":22,"types":6,"goals":[[3,24],[5,24]]},{"moves":26,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"hielo"},{"moves":25,"types":6,"goals":[["barrel",4],["fog",18]],"barrels":{"rows":[3,6],"n":4,"hp":3},"fog":{"rows":[0,4],"n":18}},{"moves":30,"types":6,"goals":[["drop",3],["floor",12]],"drop":{"n":3,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"manzano":[{"moves":23,"types":6,"goals":[[0,24],[1,22]]},{"moves":20,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":22,"types":6,"goals":[["weed",6]],"weeds":{"rows":[5,7],"n":6}},{"moves":20,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"special":"noche"}],"diamante":[{"moves":23,"types":6,"goals":[[2,26],[5,22],[3,16]]},{"moves":18,"types":6,"goals":[["rock",14],[2,12]],"rocks":{"rows":[2,6],"n":14,"hp":1},"rskin":"piedra"},{"moves":20,"types":6,"goals":[["weed",8]],"weeds":{"rows":[4,7],"n":8}},{"moves":26,"types":6,"goals":[["drop",2],["weed",4]],"drop":{"n":2,"start":1},"weeds":{"rows":[6,7],"n":4}}],"uco":[{"moves":26,"types":6,"goals":[[0,30],[1,20]]},{"moves":26,"types":6,"goals":[["floor",26],[0,12]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"tierra"},{"moves":25,"types":6,"goals":[["weed",6],["wire",6]],"weeds":{"rows":[5,7],"n":6},"wire":{"rows":[1,4],"n":6}},{"moves":30,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"atuel":[{"moves":24,"types":6,"goals":[[3,24],[4,24],[5,18]]},{"moves":24,"types":6,"goals":[["rock",12]],"rocks":{"rows":[2,7],"n":12,"hp":2},"rskin":"piedra","special":"octavio"},{"moves":20,"types":6,"goals":[["weed",10]],"weeds":{"rows":[3,7],"n":10}},{"moves":30,"types":6,"goals":[["drop",2],["floor",14]],"drop":{"n":2,"start":1},"floor":{"rows":[4,7],"n":14,"hp":1},"fskin":"arena"}],"reyunos":[{"moves":26,"types":6,"goals":[[4,30],[2,26]]},{"moves":24,"types":6,"goals":[["floor",26]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"arena"},{"moves":26,"types":6,"goals":[["weed",6],["fog",12]],"weeds":{"rows":[5,7],"n":6},"fog":{"rows":[0,3],"n":12}},{"moves":27,"types":6,"goals":[["drop",3],["weed",4]],"drop":{"n":3,"start":1},"weeds":{"rows":[6,7],"n":4}}],"caverna":[{"moves":26,"types":6,"goals":[[3,28],[1,24]]},{"moves":25,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"piedra"},{"moves":21,"types":6,"goals":[["water",4]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"tierra","water":{"src":[3]}},{"moves":24,"types":6,"goals":[["drop",2],["fog",10]],"drop":{"n":2,"start":1},"fog":{"rows":[2,5],"n":10},"special":"linterna"}],"pincheira":[{"moves":24,"types":6,"goals":[[5,28],[2,26]]},{"moves":24,"types":6,"goals":[["floor",26]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"polvo"},{"moves":22,"types":6,"goals":[["water",5]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"polvo","water":{"src":[0]}},{"moves":26,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"llancanelo":[{"moves":25,"types":6,"goals":[[0,26],[3,22]]},{"moves":21,"types":6,"goals":[["floor",28]],"floor":{"rows":[1,7],"n":28,"hp":1},"fskin":"arena"},{"moves":22,"types":6,"goals":[["water",6]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"arena","water":{"src":[2,4]}},{"moves":28,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"payunia":[{"moves":25,"types":6,"goals":[[0,26],[3,26],[5,22]]},{"moves":24,"types":6,"goals":[["rock",10],["floor",18]],"rocks":{"rows":[2,5],"n":10,"hp":2},"rskin":"lava","floor":{"rows":[3,7],"n":18,"hp":1},"fskin":"ceniza","special":"llave"},{"moves":20,"types":6,"goals":[["water",4]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"ceniza","water":{"src":[3]}},{"moves":30,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[4,7],"n":6,"hp":1},"rskin":"lava"}],"guanacache":[{"moves":27,"types":6,"goals":[[2,30],[4,26]]},{"moves":25,"types":6,"goals":[["floor",28]],"floor":{"rows":[1,7],"n":28,"hp":1},"fskin":"arena"},{"moves":26,"types":6,"goals":[["water",5]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"arena","water":{"src":[1,5]}},{"moves":30,"types":6,"goals":[["drop",2],["weed",4]],"drop":{"n":2,"start":1},"weeds":{"rows":[6,7],"n":4}}],"epilogo":[{"moves":25,"types":6,"goals":[[0,26],[1,24]]},{"moves":24,"types":6,"goals":[["floor",30]],"floor":{"rows":[1,7],"n":30,"hp":1},"fskin":"tierra"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}},{"moves":26,"types":6,"goals":[["water",6]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"tierra","water":{"src":[3]},"special":"final"}]};
 const FLOOR_SKIN = {
   tierra: { name: 'tierra seca', color: '#8a5a34', dot: '#5e3a1e' }, nieve: { name: 'nieve', color: '#eef6ff', dot: '#b9d4ec' },
   arena: { name: 'arena', color: '#e2c48a', dot: '#b8955a' }, polvo: { name: 'polvo', color: '#c9b38a', dot: '#9c8460' },
@@ -963,6 +1044,10 @@ function goalInfo(ch, lv, t) {
   if (t === 'floor') return { img: floorIcon(lv.fskin), name: FLOOR_SKIN[lv.fskin].name };
   if (t === 'drop') return { img: 'img/ui_cofre.png', name: 'cajitas de Bernardo' };
   if (t === 'wire') return { img: 'img/alambre.png', name: 'fichas atadas con alambre' };
+  if (t === 'barrel') return { img: 'img/barril.png', name: 'barriles' };
+  if (t === 'fog') return { img: 'img/niebla.png', name: 'casillas con niebla' };
+  if (t === 'weed') return { img: 'img/maleza.png', name: 'maleza' };
+  if (t === 'water') return { img: 'img/agua.png', name: 'agua de la acequia' };
   return { img: SETS[ch.set][t].img, name: SETS[ch.set][t].name.toLowerCase() };
 }
 function goalText(ch, lv) {
@@ -972,6 +1057,10 @@ function goalText(ch, lv) {
     if (t === 'floor') return `Limpiá ${n} casillas de ${g.name}`;
     if (t === 'drop') return `Bajá ${n === 1 ? 'la cajita' : `${n} cajitas`} de Bernardo hasta abajo`;
     if (t === 'wire') return `Soltá ${n} fichas atadas con alambre`;
+    if (t === 'barrel') return `Rompé ${n} barriles (3 golpes cada uno)`;
+    if (t === 'fog') return `Despejá ${n} casillas de niebla`;
+    if (t === 'weed') return 'Arrancá toda la maleza';
+    if (t === 'water') return n === 1 ? 'Abrí la acequia: llevá el agua hasta abajo' : `Llevá el agua a ${n} casillas de la fila de abajo`;
     return `Juntá ${n}`;
   }).filter((x) => x !== null).join(' · ');
 }
@@ -981,6 +1070,31 @@ function drawWire(ctx) {
   ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 3;
   if (im && im.naturalWidth) ctx.drawImage(im, 0, 0, 128, 128);
   else { ctx.strokeStyle = '#8a4a22'; ctx.lineWidth = 9; ctx.strokeRect(10, 10, 108, 108); }
+  ctx.restore();
+}
+// Barril: 3 golpes. Cada golpe le agrega rajaduras y al final pierde un zuncho.
+function drawBarrel(ctx, hp) {
+  ctx.clearRect(0, 0, 128, 128);
+  const im = IMG['img/barril.png'];
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 5;
+  if (im && im.naturalWidth) ctx.drawImage(im, 8, 6, 112, 112);
+  else { ctx.fillStyle = '#a0612f'; ctx.fillRect(22, 14, 84, 100); }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(40,18,6,.85)'; ctx.lineCap = 'round';
+  const crack = (pts, w) => { ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(...pts[0]); pts.slice(1).forEach((q) => ctx.lineTo(...q)); ctx.stroke(); };
+  if (hp <= 2) { crack([[52, 40], [58, 56], [50, 70], [56, 86]], 4); crack([[58, 56], [70, 62]], 3); }
+  if (hp <= 1) {
+    crack([[80, 36], [74, 52], [84, 66], [76, 84], [82, 100]], 4); crack([[40, 72], [32, 84], [38, 98]], 3);
+    ctx.fillStyle = 'rgba(30,14,4,.35)'; ctx.beginPath(); ctx.ellipse(66, 74, 10, 6, 0.4, 0, Math.PI * 2); ctx.fill();
+  }
+  if (hp >= 3) { ctx.fillStyle = 'rgba(255,230,160,.9)'; [[36, 38], [92, 38]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill(); }); }
+}
+function drawWeed(ctx) {
+  ctx.clearRect(0, 0, 128, 128);
+  const im = IMG['img/maleza.png'];
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 7; ctx.shadowOffsetY = 4;
+  if (im && im.naturalWidth) ctx.drawImage(im, 2, 2, 124, 124);
+  else { ctx.fillStyle = '#4f6b2a'; ctx.beginPath(); ctx.arc(64, 64, 52, 0, Math.PI * 2); ctx.fill(); }
   ctx.restore();
 }
 function drawPiece(ctx, set, t, s) {
@@ -1075,6 +1189,8 @@ const Sound = (() => {
     boom() { if (!ok()) return; const t = ctx.currentTime; tone(110, t, 0.5, 'sine', 0.35, 38); noise(t, 0.55, 900, 90, 0.5, 'lowpass'); },
     whoosh() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.4, 300, 1800, 0.22); tone(880, t + 0.32, 0.12, 'triangle', 0.05, 1320); },
     bomb() { if (!ok()) return; const t = ctx.currentTime; for (let i = 0; i < 9; i++) tone(mf(PENTA[i % PENTA.length] + 12), t + i * 0.035, 0.35, 'sine', 0.07); },
+    water() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.5, 600, 2400, 0.16); [84, 88, 91].forEach((m, i) => tone(mf(m), t + i * 0.07, 0.25, 'sine', 0.04)); },
+    grow() { if (!ok()) return; const t = ctx.currentTime; tone(180, t, 0.25, 'triangle', 0.06, 260); noise(t, 0.2, 300, 900, 0.12); },
     snip() { if (!ok()) return; const t = ctx.currentTime; tone(1800, t, 0.06, 'square', 0.04, 900); noise(t, 0.12, 5000, 1500, 0.2); pluck(88, t + 0.02, 0.35); },
     crack() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.16, 2400, 600, 0.35); tone(140, t, 0.12, 'square', 0.05, 70); },
     rumble() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.3, 120, 60, 0.4, 'lowpass'); tone(70, t, 0.3, 'sine', 0.2, 50); },
@@ -1136,6 +1252,7 @@ const P = {
   nieto: { n: 'El nieto', img: 'img/nieto.jpg' },
   nieta: { n: 'La nieta', img: 'img/nieta.jpg' },
   octavio: { n: 'Octavio', img: 'img/octavio.jpg' },
+  rosa: { n: 'Doña Rosa', img: 'img/rosa.jpg' },
 };
 const N = (text, img) => (img ? { text, img } : { text });
 const M = (text, img) => (img ? { text, img, memory: true } : { text, memory: true });
@@ -1170,52 +1287,105 @@ const CHAPTERS = [
     outro: [S('nieto', 'En el cuaderno, abrochada, hay una entrada de la Vendimia de 1972.'), S('nieta', 'El día que se conocieron.'), S('nieto', 'Atrás dice, con la letra del abuelo: "El cerro mira a la cordillera. Contá los caballos".')] },
   { act: 1, id: 'cerro', name: 'Cerro de la Gloria', sub: 'Parque General San Martín', bg: 'img/bg_cerro.jpg', set: 'finca',
     moves: 23, types: 6, goals: [[1, 24], [5, 22]],
-    obj: { icon: 'frag1', name: 'Primer fragmento', desc: 'La cabeza de la Llave, con su piedra turquesa en forma de gota.' },
+    obj: { icon: 'frag1', name: 'Primer fragmento', desc: 'La cabeza de la Llave, con su piedra turquesa en forma de gota.', stolen: true },
     intro: [N('Cerro de la Gloria, arriba del parque.'), S('nieto', '"El cerro mira a la cordillera. Contá los caballos." Es acá.'), S('nieta', 'Vamos rápido. No quiero que Octavio nos alcance.')],
     outro: [S('nieta', '¡Acá estaba! Escondida al pie del monumento.', 0, 'img/esc_cerro.jpg'), S('nieto', 'El primer pedazo de la Llave.'), S('octavio', '¡Qué casualidad! Salí a caminar por el cerro y miren con quién me encuentro.'), S('nieta', 'Llegaste cinco minutos tarde, Octavio.'), S('nieto', 'El cuaderno dice que el abuelo cosechó para una bodega de Chacras de Coria. Ahí vamos.')] },
   { act: 1, id: 'bodega', name: 'Bodega en Chacras', sub: 'Chacras de Coria, Luján', bg: 'img/bg_bodega.jpg', set: 'finca',
     obj: { icon: 'obj_corcho', name: 'El corcho de la barrica 1974', desc: 'Estaba en el escritorio de la oficina vieja. Tiene grabada una gota: la marca de la Llave.' },
     intro: [N('Chacras de Coria. Una bodega vieja, de ladrillo.'), S('nieto', 'El cuaderno dice que el abuelo cosechó para esta bodega.'), S('nieta', 'La oficina vieja está abierta. Hay fotos colgadas en la pared.')],
     outro: [S('nieta', 'Mirá esa foto. Es tu abuelo, joven. ¿Y el señor de traje?', 0, 'img/esc_bodega.jpg'), S('nieto', 'Abajo dice: "Don Ignacio Arrieta, 1974".'), S('nieta', 'Y la foto de al lado es nueva... Es Octavio. Octavio Arrieta.'), M('Mendoza, 1974. En el patio de la bodega.', 'img/esc_sobre.jpg'), M('—Es más plata de la que vas a ganar en toda tu vida, Bernardo —le dijo don Ignacio—. Dame la Llave.'), S('bernardo_obrero', 'Gracias, don Ignacio. Pero hay cosas que no se venden.', 1), S('nieto', 'El abuelo dijo que no.'), S('nieta', 'Octavio no es historiador. Es el nieto del hombre que quiso comprar la Llave.'), S('nieto', 'Y ahora la busca él.')] },
-  { act: 2, id: 'villavicencio', name: 'Villavicencio', sub: 'El hotel y los caracoles', bg: 'img/bg_villavicencio.jpg', set: 'finca',
-    moves: 22, types: 6, goals: [[5, 22], [0, 22], [3, 18]],
-    obj: { icon: 'frag2', name: 'Segundo fragmento', desc: 'Estaba debajo del puentecito del jardín.' },
-    intro: [S('nieta', 'Hay pisadas frescas. Y mirá allá, entre los árboles...', 0, 'img/esc_coleccionista.jpg'), S('nieto', 'Es Octavio, con binoculares. Nos viene siguiendo.')],
-    outro: [S('nieto', 'Lo encontramos primero. Por poco.'), S('nieta', 'Tenemos que apurarnos.')] },
-  { act: 2, id: 'potrerillos', name: 'Potrerillos', sub: 'El pueblo bajo el agua', bg: 'img/bg_potrerillos.jpg', set: 'finca',
-    moves: 25, types: 6, goals: [[2, 32], [4, 20]],
-    obj: { icon: 'frag3', name: 'Tercer fragmento', desc: 'Roberto lo había dejado en el pueblo viejo, antes del dique.' },
-    intro: [S('nieta', 'Mi abuelo manejaba camiones de YPF por esta ruta. Siempre paraba en el pueblo viejo.'), S('roberto_camionero', 'Nadie le pregunta nada a un camionero, Bernardo. Dámelo a mí, que yo lo escondo en el camino.', 1, 'img/esc_camion.jpg'), S('nieto', 'Pero el pueblo viejo quedó bajo el agua cuando hicieron el dique...')],
-    outro: [N('Con el agua baja aparecen las piedras del pueblo viejo.'), S('nieta', 'Ahí está. Mi abuelo sabía elegir escondites.')] },
-  { act: 2, id: 'puente', name: 'El Trasandino', sub: 'El viaje de Roberto', bg: 'img/bg_puente.jpg', memory: true, set: 'tren',
-    moves: 25, types: 6, goals: [[0, 26], [2, 26], [1, 16]],
-    obj: { icon: 'obj_boleto', name: 'El boleto del Trasandino', desc: 'Roberto lo guardó toda la vida. Atrás tiene algo escrito.' },
-    intro: [N('Años 70. Estación de Puente del Inca.', 'img/esc_estacion.jpg'), S('roberto_viajero', '¡Nunca salí de Mendoza y ahora me voy a Chile en tren!', 1), S('bernardo_obrero', 'Llevá la caja hasta arriba, Roberto. Allá no la va a buscar nadie.', 1), S('roberto_viajero', '¿Y vos no venís?', 1), S('bernardo_obrero', 'Yo me quedo. Tengo tres chicos que criar.', 1)],
-    outro: [S('roberto_viajero', 'Fue mi único viaje a Chile. Y lo hice por un amigo.', 1), N('Roberto guardó el boleto toda su vida.')] },
+  { act: 2, id: 'villavicencio', name: 'Villavicencio', sub: 'El hotel y los caracoles', bg: 'img/bg_villavicencio.jpg', set: 'tren',
+    obj: { icon: 'frag2', name: 'Segundo fragmento', desc: 'Estaba debajo del puentecito del jardín.', stolen: true },
+    intro: [N('Villavicencio, el hotel viejo al pie de los caracoles.'), S('nieta', 'Hay pisadas frescas. Y mirá allá, entre los árboles...', 0, 'img/esc_coleccionista.jpg'), S('nieto', 'Es Octavio, con binoculares. Nos viene siguiendo.')],
+    before: { 1: [S('nieta', '¡Octavio va derecho al puentecito del jardín!'), S('nieto', 'El cuaderno dice que el fragmento está ahí abajo. ¡Corramos!')] },
+    outro: [S('nieto', 'Lo encontramos primero. Por poco.'), S('octavio', 'Bien jugado. Pero la cordillera es larga.'), S('nieta', 'El cuaderno dice que la próxima pista está en las termas de Cacheuta.')] },
+  { act: 2, id: 'cacheuta', name: 'Termas de Cacheuta', sub: 'Palabra de camionero', bg: 'img/bg_cacheuta.jpg', set: 'tren',
+    obj: { icon: 'obj_termo', name: 'El termo de Roberto', desc: 'Azul y blanco, abollado de tantos viajes. Adentro había una pista.' },
+    intro: [N('Termas de Cacheuta, junto al río Mendoza.'), S('nieta', 'Mi abuelo paraba acá con el camión. Decía que el agua caliente le arreglaba la espalda.'), M('Años 70. Al lado de las ruinas del viejo hotel de las termas, que se llevó el aluvión de 1934.', 'img/esc_termas.jpg'), S('bernardo_obrero', 'Roberto, te tengo que contar algo. Encontré una cosa limpiando la acequia de la finca.', 1), S('roberto_camionero', '¿Qué cosa?', 1), S('bernardo_obrero', 'Una llave vieja, de piedra. Un señor de traje me la quiere comprar. Y no se la voy a vender.', 1), S('roberto_camionero', 'Entonces hay que esconderla bien. Contá conmigo. Palabra de camionero.', 1)],
+    outro: [S('nieta', 'Entre las piedras de las ruinas hay un termo viejo, azul y blanco.'), S('nieta', 'Es el termo de mi abuelo. Lo reconocería en cualquier lado.'), S('nieto', 'Adentro hay un papel: "Seguí el agua hasta el pueblo que se ahogó".')] },
+  { act: 2, id: 'potrerillos', name: 'Potrerillos', sub: 'El pueblo bajo el agua', bg: 'img/bg_potrerillos.jpg', set: 'tren',
+    obj: { icon: 'frag3', name: 'Tercer fragmento', desc: 'Roberto lo había dejado en el pueblo viejo, antes del dique.', stolen: true },
+    intro: [S('nieta', 'El pueblo que se ahogó es Potrerillos. Quedó bajo el agua cuando hicieron el dique.'), S('roberto_camionero', 'Nadie le pregunta nada a un camionero, Bernardo. Dámelo a mí, que yo lo escondo en el camino.', 1, 'img/esc_camion.jpg'), S('nieto', 'Este año el agua está baja. Se ven las piedras del pueblo viejo.')],
+    before: { 3: [S('nieto', '¡Están abriendo las compuertas! El agua va a subir.'), S('nieta', '¡Hay que sacar el fragmento antes de que lo tape!')] },
+    outro: [S('nieta', 'Ahí está. Mi abuelo sabía elegir escondites.'), S('nieto', 'Ya tenemos tres pedazos.'), N('Esa noche les llega un mensaje.'), S('octavio', 'Tengo algo que les va a interesar: una foto de Roberto con mi abuelo. Los espero mañana en las Bóvedas de Uspallata.')] },
+  { act: 2, id: 'uspallata', name: 'Uspallata', sub: 'Las Bóvedas', bg: 'img/bg_uspallata.jpg', set: 'tren',
+    obj: { icon: 'obj_nota', name: 'La nota de Octavio', desc: '"Lo que mi abuelo no pudo comprar, yo lo voy a encontrar." Tiene una mancha de hollín.' },
+    intro: [N('Las Bóvedas de Uspallata: hornos de adobe donde en 1790 se fundía plata.'), S('octavio', 'Pasen, pasen. La foto está adentro, en la bóveda grande.'), S('nieta', 'No me gusta nada esto.')],
+    before: { 2: [N('De golpe, la puerta de la bóveda se cierra.', 'img/esc_bovedas.jpg'), S('nieto', '¡Octavio! ¡Abrí!'), S('octavio', 'Perdón. De verdad, perdón. Pero necesito esa Llave más que ustedes.'), S('nieta', '¡Se llevó la mochila! ¡Con los tres fragmentos!')],
+      3: [S('nieto', 'Está todo lleno de humo. La única salida es la chimenea.'), S('nieta', 'Vos primero.')] },
+    outro: [N('Salen por la chimenea, tiznados de pies a cabeza.', 'img/esc_chimenea.jpg'), S('nieta', '¡Ahí va, en la camioneta!'), S('nieto', 'Dejó una nota en la puerta: "Lo que mi abuelo no pudo comprar, yo lo voy a encontrar".'), S('nieta', 'Pero no tiene el cuaderno. Sin el cuaderno no sabe adónde ir.'), S('nieto', 'Vio las fotos que le sacó. Sabe que la próxima marca está en las vías del Trasandino.')] },
+  { act: 2, id: 'puente', name: 'El Trasandino', sub: 'El viaje de Roberto', bg: 'img/bg_puente.jpg', set: 'tren',
+    obj: { icon: 'obj_boleto', name: 'El boleto del Trasandino', desc: 'Roberto lo guardó toda la vida. Atrás dice: "La laguna mira al gigante".' },
+    intro: [N('Las vías abandonadas del Trasandino, cerca de Puente del Inca.'), S('nieta', '¡Ahí está Octavio, en una zorra vieja! ¡Se va por las vías!'), S('nieto', 'Hay otra zorra. ¡Subí!', 0, 'img/esc_zorra.jpg'), M('Años 70. Estación de Puente del Inca.', 'img/esc_estacion.jpg'), S('roberto_viajero', '¡Nunca salí de Mendoza y ahora me voy a Chile en tren!', 1), S('bernardo_obrero', 'Llevá la caja hasta arriba, Roberto. Allá no la va a buscar nadie.', 1), S('roberto_viajero', '¿Y vos no venís?', 1), S('bernardo_obrero', 'Yo me quedo. Tengo tres chicos que criar.', 1)],
+    outro: [S('nieto', 'Se nos escapó en el túnel.'), S('nieta', 'Pero mirá lo que había en la estación vieja, entre las tablas: el boleto de mi abuelo.'), S('roberto_viajero', 'Fue mi único viaje a Chile. Y lo hice por un amigo.', 1), S('nieta', 'Atrás dice: "La laguna mira al gigante".')] },
+  { act: 2, id: 'aconcagua', name: 'Laguna de Horcones', sub: 'Al pie del Aconcagua', bg: 'img/bg_aconcagua.jpg', set: 'tren',
+    obj: { icon: 'obj_brujula', name: 'La brújula de Roberto', desc: 'Tiene un camioncito grabado en la tapa. La aguja apunta al Cristo Redentor.' },
+    intro: [N('Parque Provincial Aconcagua, Laguna de Horcones.'), S('nieto', '"La laguna mira al gigante." El gigante es el Aconcagua.'), S('nieta', 'Mi abuelo decía que era la montaña más alta de América. Siempre quiso verla de cerca.')],
+    before: { 1: [S('nieto', 'Se viene el viento blanco.'), S('nieta', '¡Rápido, antes de que no se vea nada!')] },
+    outro: [S('nieta', '¡Encontré algo entre las piedras! La brújula de mi abuelo.', 0, 'img/esc_brujula.jpg'), S('nieto', 'No apunta al norte. Apunta a la frontera.'), S('nieta', 'Al Cristo Redentor.')] },
   { act: 2, id: 'cristo', name: 'Cristo Redentor', sub: 'La frontera', bg: 'img/bg_cristo.jpg', set: 'tren',
-    moves: 24, types: 6, goals: [[3, 28], [5, 28]],
     obj: { icon: 'frag4', name: 'Cuarto fragmento', desc: 'Lo que Roberto subió hasta la cordillera.' },
-    intro: [S('nieta', 'Atrás del boleto dice: "A los pies del Cristo, mirando a los dos países".'), S('nieto', 'Qué frío hace acá arriba. Imaginate subir en esa época.')],
-    outro: [S('nieta', 'Mi abuelo subió hasta acá solo para cuidar el secreto del tuyo.', 0, 'img/esc_cristo.jpg'), S('nieto', 'Y el mío nunca se lo olvidó.')] },
-  { act: 2, id: 'uco', name: 'Valle de Uco', sub: 'Las cosechas', bg: 'img/bg_uco.jpg', set: 'finca',
-    moves: 26, types: 6, goals: [[0, 34], [1, 22]],
+    intro: [S('nieta', 'La brújula marca justo acá: los pies del Cristo, mirando a los dos países.'), S('nieto', 'Qué frío hace. Imaginate subir en esa época.')],
+    outro: [S('nieta', 'Mi abuelo subió hasta acá solo para cuidar el secreto del tuyo.', 0, 'img/esc_cristo.jpg'), S('nieto', 'Y el mío nunca se lo olvidó.'), S('octavio', 'Felicitaciones. Ahora ustedes tienen uno y yo tengo tres.', 0, 'img/esc_tres_uno.jpg'), S('nieta', 'Y nosotros tenemos el cuaderno. Sin él no vas a encontrar los otros dos.'), S('octavio', '...Entonces vamos a tener que viajar juntos.')] },
+  { act: 3, id: 'manzano', name: 'Manzano Histórico', sub: 'Tunuyán', bg: 'img/bg_manzano.jpg', set: 'finca',
+    obj: { icon: 'obj_foto_hijos', name: 'La foto de los tres hijos', desc: 'El papá del nieto y sus dos hermanos, chiquitos, en el Manzano Histórico.' },
+    intro: [N('Manzano Histórico, en el Valle de Uco.'), S('nieto', 'Viajar con Octavio en la misma camioneta... Quién lo hubiera dicho.'), S('octavio', 'Prometo no encerrar a nadie.'), S('nieta', 'Muy gracioso.'), S('nieto', 'El cuaderno dice que el abuelo traía a sus hijos acá.'), M('Años 70. Un domingo en el Manzano.', 'img/esc_vianda.jpg'), S('bernardo_obrero', 'Acá descansó San Martín cuando volvió de Chile, en 1823. Imagínense: después de cruzar toda la cordillera.', 1), S('bernardo_obrero', 'Coman, que la vianda no se come sola.', 1)],
+    before: { 3: [N('Se hizo de noche en el Manzano.'), S('octavio', 'Tengo faroles en la camioneta. Busquemos con eso.')] },
+    outro: [S('nieto', 'En el hueco del sauce viejo había una foto: mi viejo y mis tíos, chiquitos.'), S('nieta', 'Los tres hijos de Bernardo.'), S('octavio', '...Mi abuelo nunca me llevó a ningún lado.')] },
+  { act: 3, id: 'diamante', name: 'Laguna del Diamante', sub: 'Donde el volcán se mira', bg: 'img/bg_diamante.jpg', set: 'finca',
+    obj: { icon: 'obj_pomez', name: 'La piedra que flota', desc: 'Piedra pómez del volcán Maipo. Flota en el agua de la laguna.' },
+    intro: [N('Laguna del Diamante, a más de 3000 metros.'), S('nieta', 'La pista dice: "Donde el volcán se mira en el agua".'), S('nieto', 'El volcán Maipo, reflejado en la laguna.')],
+    outro: [N('Esa noche, junto al fuego.', 'img/esc_fogata.jpg'), S('octavio', 'La bodega de mi familia está llena de deudas. Si no consigo plata, el año que viene cierra.'), S('octavio', 'Mi abuelo pensaba que la Llave lo iba a salvar. Yo pensé lo mismo.'), S('nieta', 'No sabía...'), S('nieto', 'Mirá: en la orilla flota una piedra. Es pómez, piedra de volcán.')] },
+  { act: 3, id: 'uco', name: 'Valle de Uco', sub: 'Las cosechas', bg: 'img/bg_uco.jpg', set: 'finca',
     obj: { icon: 'frag5', name: 'Quinto fragmento', desc: 'Entre las raíces de la cepa más vieja.' },
     intro: [S('nieto', 'El cuaderno dice que el abuelo trabajó acá muchas cosechas.'), S('bernardo_obrero', 'No tengo plata, pero tengo las manos. Con eso alcanza para que mis hijos coman.', 1, 'img/esc_cosecha.jpg')],
-    outro: [S('nieto', 'Cada racimo de acá era un plato de comida en su mesa.'), S('nieta', 'Y mirá: escondió el fragmento entre sus viñas.')] },
-  { act: 2, id: 'atuel', name: 'Cañón del Atuel', sub: 'San Rafael', bg: 'img/bg_atuel.jpg', set: 'finca',
-    moves: 26, types: 6, goals: [[3, 28], [4, 28], [5, 22]],
-    obj: { icon: 'frag6', name: 'Sexto fragmento', desc: 'Octavio estuvo cerca, pero no tenía el cuaderno.' },
-    intro: [S('nieta', 'Octavio llegó antes. Hay marcas suyas por todo el cañón.'), S('nieto', 'Pero él no tiene el cuaderno. Nosotros sí.')],
-    outro: [S('nieto', 'Sexto fragmento.'), S('nieta', 'Ya están todos. Y la última marca del mapa está en la Payunia.')] },
-  { act: 2, id: 'payunia', name: 'La Payunia', sub: 'Donde el fuego se hizo piedra', bg: 'img/bg_payunia.jpg', set: 'finca', final: true,
-    moves: 27, types: 6, goals: [[0, 30], [3, 30], [5, 26]],
+    outro: [S('nieto', 'Cada racimo de acá era un plato de comida en su mesa.'), S('nieta', 'Y mirá: escondió el fragmento entre sus viñas.'), S('octavio', 'Cinco pedazos... y tres son míos.')] },
+  { act: 3, id: 'atuel', name: 'Cañón del Atuel', sub: 'San Rafael', bg: 'img/bg_atuel.jpg', set: 'finca',
+    obj: { icon: 'frag6', name: 'Sexto fragmento', desc: 'Octavio intentó escaparse con él río abajo.' },
+    intro: [N('Cañón del Atuel, San Rafael.'), S('nieta', 'El sexto fragmento está en el cañón, cerca del río.'), S('nieto', 'Octavio se levantó temprano... y no está.')],
+    before: { 1: [S('nieta', '¡Octavio encontró el fragmento y se va río abajo en un gomón!', 0, 'img/esc_gomon.jpg'), S('nieto', '¡Al otro gomón, rápido!')] },
+    outro: [S('nieto', 'Lo alcanzamos en el remanso.'), S('octavio', 'Está bien, está bien. Tomá. No sé qué me pasó.'), S('nieta', 'El sexto fragmento queda con nosotros.')] },
+  { act: 3, id: 'reyunos', name: 'Los Reyunos', sub: 'El dique', bg: 'img/bg_reyunos.jpg', set: 'finca',
+    obj: { icon: 'obj_servilleta', name: 'La servilleta del acuerdo', desc: '"Juntamos la Llave y decidimos juntos qué hacer." Firmada por los tres.' },
+    intro: [N('Dique Los Reyunos, San Rafael.'), S('nieto', 'Tres pedazos nosotros, tres pedazos él. Nadie puede seguir solo.'), S('octavio', 'Y la última marca del mapa está en el sur.')],
+    outro: [N('En un parador junto al dique, con tres cafés.', 'img/esc_servilleta.jpg'), S('nieta', 'Escribamos un acuerdo: "Juntamos la Llave y decidimos juntos qué hacer".'), S('octavio', 'Firmo.'), S('nieto', 'Firmamos los tres.')] },
+  { act: 4, id: 'caverna', name: 'Caverna de las Brujas', sub: 'Malargüe', bg: 'img/bg_caverna.jpg', set: 'sur',
+    obj: { icon: 'obj_farol', name: 'El farol de minero', desc: 'Octavio lo usó para alumbrar la marca de los abuelos.' },
+    intro: [N('Caverna de las Brujas, Malargüe.'), S('nieto', 'La pista dice: "Donde el agua se hace piedra".'), S('nieta', 'Las estalactitas: agua que gota a gota se volvió piedra.')],
+    before: { 3: [S('nieto', 'Se está apagando la linterna...'), S('octavio', 'Tengo un farol. Sigan, yo alumbro.')] },
+    outro: [S('nieta', 'Miren la pared. Una B y una R, rayadas con un clavo.', 0, 'img/esc_marca.jpg'), S('nieto', 'Bernardo y Roberto. Estuvieron acá.'), S('octavio', 'Quedate el farol. Te lo regalo.')] },
+  { act: 4, id: 'pincheira', name: 'Castillos de Pincheira', sub: 'Malargüe', bg: 'img/bg_pincheira.jpg', set: 'sur',
+    obj: { icon: 'obj_herradura', name: 'La herradura vieja', desc: 'Estaba junto al río, al pie de los castillos de piedra.' },
+    intro: [N('Castillos de Pincheira, Malargüe.'), S('octavio', 'Acá se escondían los bandidos Pincheira, en el siglo XIX. Dicen que dejaron oro enterrado.'), S('nieta', 'Octavio, no empieces.')],
+    outro: [S('octavio', 'Imaginen si el oro está acá y la Llave abre el escondite...', 0, 'img/esc_pincheira.jpg'), S('nieto', 'Mirá lo que escribió el abuelo en el cuaderno: "No hay oro, hay agua".'), S('octavio', '...¿Agua?'), S('nieta', 'Al lado del río encontramos una herradura vieja.')] },
+  { act: 4, id: 'llancanelo', name: 'Laguna de Llancanelo', sub: 'Entre flamencos', bg: 'img/bg_llancanelo.jpg', set: 'sur',
+    obj: { icon: 'obj_pluma', name: 'La pluma de flamenco', desc: 'Rosada, encontrada en la orilla al atardecer.' },
+    intro: [N('Laguna de Llancanelo, Malargüe.'), S('nieta', 'Qué lugar tan tranquilo.'), S('nieto', 'Mañana llegamos a la Payunia. Disfrutemos un rato.')],
+    outro: [N('Atardece en la laguna.', 'img/esc_flamencos.jpg'), S('nieta', '¿Sabés qué? Me alegra que nuestros abuelos se hayan conocido.'), S('nieto', 'A mí también. Si no, no te hubiera conocido a vos.'), N('A lo lejos, Octavio habla por teléfono con su familia. Por primera vez en todo el viaje, sonríe.'), S('nieta', 'Mirá, una pluma de flamenco en la orilla.')] },
+  { act: 4, id: 'payunia', name: 'La Payunia', sub: 'Donde el fuego se hizo piedra', bg: 'img/bg_payunia.jpg', set: 'sur', letter: true,
     obj: { icon: 'llave', name: 'La Llave del Agua', desc: 'Los seis fragmentos encajan. La Llave está entera otra vez.' },
-    intro: [N('Malargüe. Atardece en la Payunia.'), S('nieta', 'La última marca del mapa. Acá no hay más que volcanes.'), S('nieto', 'El cuaderno dice: "Donde el fuego se hizo piedra, la Llave abre lo que guardé".'), S('nieta', 'Esta vez llegamos antes que Octavio.')],
+    intro: [N('Malargüe. Atardece en la Payunia.'), S('nieta', 'La última marca del mapa. Acá no hay más que volcanes.'), S('nieto', 'El cuaderno dice: "Donde el fuego se hizo piedra, la Llave abre lo que guardé".'), S('octavio', 'Cumplo el acuerdo. Acá están mis tres pedazos.')],
+    before: { 1: [N('Seis pedazos, uno al lado del otro.'), S('nieta', 'Hay que armar la Llave antes de que se haga de noche.')] },
     outro: [N('Las seis piezas encajan una por una. La Llave abre una cajita de lata escondida entre las piedras.', 'img/esc_llave.jpg'), S('nieta', 'No hay oro...'), S('nieto', 'Hay un sobre. Tiene mi nombre. Y dice: "Para tu cumpleaños número 10".')],
-    epilogue: [S('nieto', 'Tuvo la Llave en la mano y eligió no venderla.'), S('nieta', 'Igual que cuando dejó Córdoba. Eligió a los suyos.'), S('nieto', 'Tu abuelo y el mío, cuidando el mismo secreto durante cincuenta años.'), S('nieta', 'Para que un día nos encontráramos nosotros.'), N('La Llave del Agua quedó en un museo de Mendoza, para que la vea todo el que venga. La carta volvió a la caja, enterrada otra vez al pie del olivo.', 'img/esc_museo.jpg')] },
+    after: [S('nieto', '"Llevala adonde nació el agua"...'), S('nieta', '¿Y dónde nació el agua?'), S('octavio', 'Los primeros que regaron Mendoza fueron los huarpes. En las lagunas de Guanacache.'), S('nieto', 'Entonces vamos a Guanacache.')] },
+  { act: 4, id: 'guanacache', name: 'Lagunas de Guanacache', sub: 'Lavalle', bg: 'img/bg_guanacache.jpg', set: 'sur',
+    obj: { icon: 'obj_balsa', name: 'La balsa de totora', desc: 'Regalo de doña Rosa: como las balsas con que los laguneros navegaban Guanacache.' },
+    intro: [N('Lagunas de Guanacache, en Lavalle, al lado de la capilla del Rosario.'), S('nieta', 'Las lagunas están casi secas.'), S('rosa', 'Hace más de cien años que el agua de los ríos se usa antes de llegar acá. Solo vuelve los años de mucho deshielo.'), S('rosa', 'Soy Rosa. Hago artesanías de totora. ¿Qué los trae por acá?')],
+    before: { 2: [S('rosa', 'A ver esa llave... Estos dibujos son los mismos que marcan las acequias más viejas.', 0, 'img/esc_rosa.jpg'), S('rosa', 'Mi abuela contaba que los laguneros marcaban así las compuertas. Esta llave abría el paso del agua.'), S('octavio', '...Entonces no es un tesoro para vender. Es de acá.')] },
+    outro: [N('Ese año hubo mucho deshielo. El agua bajó por la acequia vieja y las lagunas se llenaron otra vez.', 'img/esc_lagunas.jpg'), S('octavio', 'No la voy a vender. La bodega... ya voy a ver cómo la salvo. Pero no así.'), S('rosa', 'Tomen. Una balsa de totora, como las que usaban los laguneros.'), S('nieta', 'Gracias, doña Rosa.')] },
+  { act: 4, id: 'epilogo', name: 'El olivo, otra vez', sub: 'Maipú', bg: 'img/bg_finca.jpg', set: 'finca', final: true,
+    obj: { icon: 'obj_foto_abuelos', name: 'La foto de los dos abuelos', desc: 'Bernardo y Roberto, abrazados en la viña. Ahora está en el museo, al lado de la Llave.' },
+    intro: [N('Maipú. Vuelven al olivo donde empezó todo.'), S('nieto', 'Acá jugaba mi viejo. Y acá el abuelo enterró la caja.'), S('nieta', '¿Qué hacemos con la Llave?'), S('nieto', 'Que la vea todo el que venga. En un museo, al lado de la foto de los dos.')],
+    before: { 2: [S('nieto', 'La carta vuelve a la caja. Y la caja, al pie del olivo.')], 3: [S('nieta', 'La acequia del olivo está seca.'), S('nieto', 'Abramos el paso. Que vuelva el agua.')] },
+    outro: [N('El agua vuelve a correr al pie del olivo.', 'img/esc_agua_olivo.jpg'), S('nieto', 'Tuvo la Llave en la mano y eligió no venderla.'), S('nieta', 'Igual que cuando dejó Córdoba. Eligió a los suyos.'), S('nieto', 'Tu abuelo y el mío, cuidando el mismo secreto durante cincuenta años.'), S('nieta', 'Para que un día nos encontráramos nosotros.'), N('La Llave del Agua quedó en un museo de Mendoza, al lado de la foto de Bernardo y Roberto.', 'img/esc_museo.jpg'), N('Octavio reabrió la bodega de su familia como parada de la ruta del mapa. Y la carta volvió a la caja, al pie del olivo.')] }
 ];
-CHAPTERS.forEach((c, i) => { c.num = i === 0 ? 'Prólogo' : c.final ? 'Final' : `Capítulo ${i}`; });
-const ACTS = { 1: { name: 'Acto 1 · La ciudad', map: 'img/mapa_ciudad.jpg' }, 2: { name: 'Lo que sigue · La cordillera y el sur', map: 'img/mapa_cordillera.jpg' } };
+CHAPTERS.forEach((c, i) => { c.num = i === 0 ? 'Prólogo' : c.final ? 'Epílogo' : `Capítulo ${i}`; });
+const ACTS = {
+  1: { name: 'Acto 1 · La ciudad', map: 'img/mapa_ciudad.jpg' },
+  2: { name: 'Acto 2 · La cordillera', map: 'img/mapa_ruta7.jpg' },
+  3: { name: 'Acto 3 · El valle', map: 'img/mapa_valle.jpg' },
+  4: { name: 'Acto 4 · El origen', map: 'img/mapa_sur.jpg' },
+};
 
 const LETTER = [
   'Querido nieto:',
@@ -1293,7 +1463,55 @@ const $ = (id) => document.getElementById(id);
 const app = $('app'), bg = $('bg');
 function show(id) { ['title', 'map', 'game', 'dialog', 'letter', 'shop'].forEach((s) => $(s).classList.toggle('off', s !== id)); $('modal').classList.add('off'); }
 function setBg(src, awake) { if (src) bg.style.backgroundImage = `url(${src})`; setAwake(awake); }
-function setAwake(p) { bg.style.filter = `saturate(${(0.3 + 0.7 * p).toFixed(2)}) brightness(${(0.78 + 0.22 * p).toFixed(2)})`; }
+let NIGHT = false;
+function setAwake(p) { bg.style.filter = `saturate(${((0.3 + 0.7 * p) * (NIGHT ? 0.6 : 1)).toFixed(2)}) brightness(${((0.78 + 0.22 * p) * (NIGHT ? 0.4 : 1)).toFixed(2)})${NIGHT ? ' hue-rotate(15deg)' : ''}`; }
+
+/* ===== Perfil: nombre, trato y edad (como Homescapes) =====
+   El trato decide las palabras con género ("genio" o "genia"). La edad se guarda para el día que el juego
+   tenga publicidad: a los menores de 13 no se les puede mostrar publicidad personalizada. Todo queda en el celular. */
+const esc = (t) => String(t).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const G = (o, a, x) => { const t = save.profile && save.profile.trato; return t === 'a' ? a : t === 'o' ? o : x; };
+const isKid = () => !!(save.profile && save.profile.edad && save.profile.edad < 13);
+function cheer() {
+  const n = save.profile && save.profile.name ? save.profile.name : '';
+  const list = [n ? `¡Bien, ${n}!` : '¡Bien!', '¡Bárbaro!', `¡Qué ${G('genio', 'genia', 'crack')}!`, n ? `¡Excelente, ${n}!` : '¡Excelente!'];
+  return esc(list[Math.floor(Math.random() * list.length)]);
+}
+function askProfile(editing) {
+  return new Promise((resolve) => {
+    const p = save.profile || {};
+    modal(`<span class="kicker">${editing ? 'Tu perfil' : '¡Hola!'}</span><h3>${editing ? 'Cambiá tus datos' : 'Antes de empezar'}</h3>
+      <label class="pf-field"><span>¿Cómo te llamás?</span><input id="pf-name" type="text" maxlength="16" autocomplete="given-name" placeholder="Tu nombre"></label>
+      <div class="pf-field"><span>¿Cómo te festejamos?</span><div class="pf-chips" role="radiogroup">
+        <button type="button" class="pf-chip" data-t="o" role="radio">¡Qué genio!</button><button type="button" class="pf-chip" data-t="a" role="radio">¡Qué genia!</button><button type="button" class="pf-chip" data-t="x" role="radio">¡Qué crack!</button></div></div>
+      <label class="pf-field"><span>¿Cuántos años tenés?</span><input id="pf-age" type="number" inputmode="numeric" min="4" max="120" placeholder="Edad"></label>
+      <p class="pf-note">Se guarda solo en este celular.</p>
+      <button type="button" class="btn" id="pf-ok">${editing ? 'Guardar' : 'Empezar'}</button>
+      ${editing ? '<button type="button" class="btn ghost" id="pf-cancel">Cancelar</button>' : ''}`, [], (card) => {
+      let trato = p.trato || '';
+      const name = card.querySelector('#pf-name'), age = card.querySelector('#pf-age'), ok = card.querySelector('#pf-ok');
+      name.value = p.name || ''; age.value = p.edad || '';
+      const paint = () => {
+        card.querySelectorAll('.pf-chip').forEach((b) => { const on = b.dataset.t === trato; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
+        const a = parseInt(age.value, 10);
+        ok.disabled = !(name.value.trim() && trato && a >= 4 && a <= 120);
+      };
+      card.querySelectorAll('.pf-chip').forEach((b) => b.addEventListener('click', () => { Sound.tick(); trato = b.dataset.t; paint(); }));
+      name.addEventListener('input', paint); age.addEventListener('input', paint);
+      const close = (val) => { $('modal').classList.add('off'); resolve(val); };
+      ok.addEventListener('click', () => {
+        if (ok.disabled) return;
+        Sound.tick();
+        save.profile = { name: name.value.trim().slice(0, 16), trato, edad: parseInt(age.value, 10) };
+        persist(); close(true);
+      });
+      const cancel = card.querySelector('#pf-cancel');
+      if (cancel) cancel.addEventListener('click', () => close(false));
+      paint();
+      setTimeout(() => { if (!name.value) name.focus(); }, 50);
+    });
+  });
+}
 
 /* ===== Portada y mapa ===== */
 function openTitle() {
@@ -1302,7 +1520,7 @@ function openTitle() {
   const f = frontier(), i = f < CHAPTERS.length ? f : -1;
   const ch = CHAPTERS[i < 0 ? CHAPTERS.length - 1 : i], lv = i < 0 ? nLv(ch) : lvDoneOf(ch) + 1;
   $('continue').innerHTML = `<span class="cthumb" style="background-image:url(${ch.bg})"></span>
-    <span class="ctext"><small>${done ? 'Seguís en' : 'Empezás en'}</small><b></b><span>${i < 0 ? '¡Terminaste la historia!' : `Nivel ${levelNumber(ch, lv - 1)} · ${lv} de ${nLv(ch)} en este lugar`}</span></span>
+    <span class="ctext"><small>${save.profile && save.profile.name ? `Hola, ${esc(save.profile.name)} · ` : ''}${done ? 'Seguís en' : 'Empezás en'}</small><b></b><span>${i < 0 ? '¡Terminaste la historia!' : `Nivel ${levelNumber(ch, lv - 1)} · ${lv} de ${nLv(ch)} en este lugar`}</span></span>
     <span class="cbar">${done}/${total}<i style="--p:${Math.round(done / total * 100)}%"></i></span>`;
   $('continue').querySelector('b').textContent = ch.name;
   syncSoundButtons();
@@ -1311,10 +1529,13 @@ function openTitle() {
 // Posición de cada lugar sobre el mapa de su acto (% del ancho y del alto del dibujo)
 const NODES = {
   prologo: [40, 95], finca: [75, 88], ruinas: [68, 71], plaza: [66, 49], parque: [80, 28], cerro: [36, 28], bodega: [30, 12],
-  villavicencio: [32, 81], potrerillos: [56, 70], puente: [83, 59], cristo: [36, 42], uco: [80, 34], atuel: [34, 19], payunia: [72, 11],
+  villavicencio: [28, 82], cacheuta: [72, 66], potrerillos: [58, 53], uspallata: [32, 42], puente: [60, 30], aconcagua: [72, 18], cristo: [36, 11],
+  manzano: [57, 85], diamante: [70, 74], uco: [70, 46], atuel: [80, 32], reyunos: [64, 12],
+  caverna: [53, 84], pincheira: [84, 68], llancanelo: [74, 48], payunia: [66, 33], guanacache: [37, 15], epilogo: [66, 6],
 };
 const BAG_SVG = `<svg viewBox="0 0 64 64"><path d="M20 18c0-8 5-12 12-12s12 4 12 12" fill="none" stroke="#6b3f22" stroke-width="5"/><rect x="10" y="16" width="44" height="42" rx="12" fill="#a8683a"/><rect x="10" y="16" width="44" height="16" rx="10" fill="#8a5230"/><rect x="18" y="36" width="28" height="16" rx="5" fill="#8a5230"/><rect x="29" y="28" width="6" height="10" rx="2" fill="#e6b84a"/></svg>`;
 function renderMap() {
+  NIGHT = false; $('game').classList.remove('night');
   const got = CHAPTERS.filter((c) => save.got[c.id]);
   $('bag-ico').innerHTML = '<img src="img/ui_mochila.png" alt="">';
   $('bag-count').textContent = got.length;
@@ -1361,7 +1582,12 @@ function renderMap() {
 }
 function openBag() {
   Sound.tick();
-  const cells = CHAPTERS.map((c) => `<div class="bag-cell${save.got[c.id] ? '' : ' missing'}"><div class="bi">${objIcon(c.obj.icon)}</div><span>${save.got[c.id] ? c.obj.name : '?'}</span></div>`).join('');
+  // los tres primeros fragmentos los tiene Octavio desde Uspallata hasta la Payunia
+  const robbed = save.got.uspallata && !save.got.payunia;
+  const cells = CHAPTERS.map((c) => {
+    const has = !!save.got[c.id], gone = has && robbed && c.obj.stolen;
+    return `<div class="bag-cell${has && !gone ? '' : ' missing'}"><div class="bi">${objIcon(c.obj.icon)}</div><span>${gone ? 'Lo tiene Octavio' : has ? c.obj.name : '?'}</span></div>`;
+  }).join('');
   return modal(`<span class="kicker">Mochila</span><h3>Lo que encontraste</h3><div class="bag-grid">${cells}</div>`, [['Cerrar', 1]]);
 }
 function openMore() {
@@ -1369,6 +1595,7 @@ function openMore() {
   let armed = false;
   return modal(`<span class="kicker">Opciones</span><h3>El mapa de Bernardo</h3><div class="more-list">
       <button type="button" class="snd" aria-pressed="true">Sonido: sí</button>
+      <button type="button" id="m-profile">Tu perfil</button>
       <button type="button" id="m-howto">Cómo jugar</button>
       <button type="button" id="m-title">Volver a la portada</button>
       <button type="button" id="m-install" hidden>Instalar en el celular</button>
@@ -1377,6 +1604,7 @@ function openMore() {
     syncSoundButtons();
     card.querySelector('.snd').addEventListener('click', () => { Sound.unlock(); Sound.toggle(); if (!Sound.muted) Sound.music('game'); syncSoundButtons(); });
     card.querySelector('#m-howto').addEventListener('click', async () => { await showHowTo(); renderMap(); });
+    card.querySelector('#m-profile').addEventListener('click', async () => { await askProfile(true); renderMap(); });
     card.querySelector('#m-title').addEventListener('click', () => { $('modal').classList.add('off'); openTitle(); });
     const ins = card.querySelector('#m-install');
     ins.hidden = standalone() || !(installPrompt || isIOS);
@@ -1397,7 +1625,7 @@ const HOWTO = [
     d: () => `<div class="demo"><div class="demo-hud"><div class="moves"><b>18</b><span>Jugadas</span></div><div class="goals"><div class="goal"><img src="${SETS.finca[0].img}" alt=""><span>20</span></div><div class="goal"><img src="${SETS.finca[2].img}" alt=""><span>18</span></div></div></div></div>` },
   { t: 'Armá boosters', p: 'Con más de 3 fichas aparece un booster. Tocalo para usarlo, o deslizalo contra otro para combinarlos.',
     d: () => `<div class="boost-list"><img src="img/b_zonda.png" alt=""><span><b>4 en línea</b> · Zonda: barre una fila</span><img src="img/b_condor.png" alt=""><span><b>Cuadrado de 4</b> · Cóndor: vuela a lo que te falta</span><img src="img/b_volcan.png" alt=""><span><b>Forma de L o T</b> · Volcán: explota alrededor</span><img src="img/p_llave.png" alt=""><span><b>5 en línea</b> · Llave: se lleva un color</span></div>` },
-  { t: 'Cada lugar tiene 4 niveles', p: 'Juntás fichas, superás el obstáculo del lugar, soltás las fichas atadas con alambre y al final bajás la cajita de Bernardo hasta abajo para seguir la historia.',
+  { t: 'Cada lugar tiene 4 niveles', p: 'Juntás fichas, superás el obstáculo del lugar, enfrentás lo nuevo de cada acto (alambre, barriles, niebla, maleza, acequias) y al final bajás la cajita de Bernardo hasta abajo para seguir la historia.',
     d: () => `<div class="demo"><img src="img/rock_ladrillo.png" alt=""><span class="arrow">·</span><img src="${floorIcon('tierra')}" alt=""><span class="arrow">·</span><img src="img/alambre.png" alt=""><span class="arrow">·</span><img src="img/ui_cofre.png" alt=""></div>` },
   { t: 'Vidas y monedas', p: 'Tenés 5 vidas y se recupera una cada 30 minutos. Con las monedas que ganás comprás ayudas en el Mercado.',
     d: () => `<div class="demo"><img src="img/ui_corazon.png" alt=""><img src="img/ui_moneda.png" alt=""><img src="img/ui_mercado.png" alt=""></div>` },
@@ -1634,6 +1862,7 @@ async function playPlace(i) {
   return v;
 }
 async function playLevel(i, L, replay) {
+  NIGHT = false;
   const ch = CHAPTERS[i];
   current = i;
   setBg(ch.bg, ch.memory ? 0.9 : 0.15);
@@ -1644,12 +1873,26 @@ async function playLevel(i, L, replay) {
 // Niveles especiales (cada 10): menos jugadas, una carrera y un premio grande
 const SPECIAL = {
   reloj: { tag: 'Nivel especial · Contra el reloj', img: 'img/t_reloj.png', rival: 'El reloj', desc: 'Resolvé el acertijo del cuaderno antes de que se haga de noche. Hay menos jugadas, pero el premio es grande.', prize: 100 },
-  octavio: { tag: 'Nivel especial · Contra Octavio', img: 'img/octavio.jpg', rival: 'Octavio', desc: 'Octavio corre a la par. Llegá a la cajita antes que él: hay menos jugadas, pero el premio es grande.', prize: 100 },
+  octavio: { tag: 'Nivel especial · Contra Octavio', img: 'img/octavio.jpg', rival: 'Octavio', desc: 'Octavio corre a la par. Llegá antes que él: hay menos jugadas, pero el premio es grande.', prize: 100 },
+  agua: { tag: 'Nivel especial · El agua sube', img: 'img/f_gota.png', rival: 'El agua', desc: 'Abrieron las compuertas del dique. Sacá la cajita antes de que el agua tape el pueblo viejo.', prize: 100 },
+  viento: { tag: 'Nivel especial · Viento blanco', img: 'img/t_copo.png', rival: 'El viento blanco', desc: 'Se viene el viento blanco. Terminá antes de que no se vea nada.', prize: 100 },
+  noche: { tag: 'Nivel especial · De noche', img: 'img/t_farol.png', rival: 'La noche', desc: 'Se hizo de noche en el Manzano. Buscá con los faroles antes de que se apaguen.', prize: 100, night: true },
+  linterna: { tag: 'Nivel especial · Se apaga la linterna', img: 'img/obj_farol.png', rival: 'La linterna', desc: 'La linterna se está quedando sin pilas. Terminá antes de quedarte a oscuras en la caverna.', prize: 100, night: true },
+  llave: { tag: 'Nivel especial · Armar la Llave', img: 'img/llave.png', rival: 'El atardecer', desc: 'Juntá las seis piezas antes de que se haga de noche en la Payunia.', prize: 100 },
+  final: { tag: 'Nivel 100 · El último', img: 'img/agua.png', desc: 'Abrí el paso para que el agua vuelva a correr al pie del olivo.', prize: 200, noRace: true },
 };
 // Mecánicas nuevas: se explican la primera vez que aparecen
 const TIPS = {
   wire: { kicker: 'Nuevo en el Acto 1', title: 'Alambre de viña', img: 'img/alambre.png',
     text: 'Algunas fichas están atadas con alambre: no se pueden mover y frenan a las que caen. Juntalas con otras iguales, o alcanzalas con un booster, y se sueltan.' },
+  barrel: { kicker: 'Nuevo en el Acto 2', title: 'Barriles de roble', img: 'img/barril.png',
+    text: 'Los barriles aguantan 3 golpes. Hacé combinaciones al lado o usá un booster. Cada barril que rompés suelta monedas.' },
+  fog: { kicker: 'Nuevo en el Acto 2', title: 'Niebla de montaña', img: 'img/niebla.png',
+    text: 'La niebla tapa las casillas y no deja ver qué hay abajo. Se despeja cuando rompés algo en esa casilla o al lado.' },
+  weed: { kicker: 'Nuevo en el Acto 3', title: 'Maleza', img: 'img/maleza.png',
+    text: 'La maleza no se mueve y crece: si en una jugada no rompés ninguna, se come una ficha de al lado. Hacé combinaciones pegadas a ella para arrancarla toda.' },
+  water: { kicker: 'Nuevo en el Acto 4', title: 'Las acequias', img: 'img/agua.png',
+    text: 'El agua entra por arriba y corre hacia abajo y a los costados, pero la tierra la frena. Limpiá la tierra con combinaciones para abrirle camino hasta la fila de abajo.' },
 };
 async function beginLevel(ch, L, replay) {
   const lv = LEVELS[ch.id][L];
@@ -1725,7 +1968,10 @@ async function startLevel(ch, L, pre, replay) {
   hudGoals = [];
   $('race').hidden = !sp;
   $('game').classList.toggle('special', !!sp);
-  if (sp) { $('race-rival').style.backgroundImage = `url(${sp.img})`; $('race-rival').title = sp.rival; $('race-you').style.backgroundImage = 'url(img/nieto.jpg)'; }
+  $('race').hidden = !sp || !!sp.noRace;
+  $('game').classList.toggle('night', !!(sp && sp.night));
+  NIGHT = !!(sp && sp.night);
+  if (sp) { $('race-rival').style.backgroundImage = `url(${sp.img})`; $('race-rival').title = sp.rival || ''; $('race-you').style.backgroundImage = 'url(img/nieto.jpg)'; }
   show('game');
   setAwake(ch.memory ? 0.9 : 0.15);
   app.classList.toggle('memory', !!ch.memory);
@@ -1737,12 +1983,13 @@ async function startLevel(ch, L, pre, replay) {
     set: ch.set, lv, moves: lv.moves, types: lv.types, goals: lv.goals.map(([t, n]) => ({ t, n, got: 0 })), pre: pre || [],
     onUpdate: (st) => {
       renderHUD(st, ch, lv);
-      const tot = st.goals.reduce((a, g) => a + g.n, 0), got = st.goals.reduce((a, g) => a + Math.min(g.n, g.got), 0);
+      const tot = st.goals.reduce((a, g) => a + g.n, 0), got = st.goals.reduce((a, g) => a + Math.max(0, Math.min(g.n, g.got)), 0);
       if (!ch.memory) setAwake(0.15 + 0.85 * got / tot);
-      if (sp) { const used = scene.movesUsed || 0; $('race-you').style.left = `${(got / tot) * 100}%`; $('race-rival').style.left = `${Math.min(1, used / Math.max(1, used + st.moves)) * 100}%`; }
+      if (sp && !sp.noRace) { const used = scene.movesUsed || 0; $('race-you').style.left = `${(got / tot) * 100}%`; $('race-rival').style.left = `${Math.min(1, used / Math.max(1, used + st.moves)) * 100}%`; }
     },
-    onCombo: (n) => { if (n === 2) toast('¡Bien!'); else if (n === 3) toast('¡Bárbaro!'); else if (n >= 4) toast('¡Qué genio!'); },
+    onCombo: (n) => { if (n === 2) toast('¡Bien!'); else if (n === 3) toast('¡Bárbaro!'); else if (n >= 4) toast(`¡Qué ${G('genio', 'genia', 'crack')}!`); },
     onTool: () => updateToolbar(),
+    onCoins: (n) => { addCoins(n * 3); Sound.coin(); toast(`+${n * 3} monedas del barril`); },
     onToolUsed: (k) => { save.inv[k] = Math.max(0, save.inv[k] - 1); persist(); updateToolbar(); },
     onEnd: (won, info) => endLevel(ch, L, won, info, replay),
   });
@@ -1771,18 +2018,20 @@ async function endLevel(ch, L, won, info, replay) {
       await modal(`<span class="kicker">Conseguiste</span><div class="icon${ch.final ? ' big' : ''}">${objIcon(ch.obj.icon)}</div><h3></h3><p></p>${reward}`, [['Seguir la historia', 1]],
         (card) => { card.querySelector('h3').textContent = ch.obj.name; card.querySelector('p').textContent = ch.obj.desc; });
       await runDialog(ch.outro);
-      if (ch.final) {
+      if (ch.letter) {
         await showLetter();
         Sound.music('game');
         setBg(ch.bg, 1);
-        await runDialog(ch.epilogue);
+        await runDialog(ch.after);
+      }
+      if (ch.final) {
         Sound.chime();
         $('dialog').classList.add('off');
         await modal(`<span class="kicker">Fin</span><div class="icon big">${objIcon('llave')}</div><h3>El mapa de Bernardo</h3><p>En memoria de Bernardo y de Roberto.</p>`, [['Volver al mapa', 1]]);
       }
     } else {
       const canNext = L < last && !replay, left = last - L;
-      const v = await modal(`<span class="kicker">${ch.name}</span><h3>¡Nivel ${levelNumber(ch, L)} superado!</h3>${reward}${canNext ? `<p>Falta${left === 1 ? '' : 'n'} ${left} nivel${left === 1 ? '' : 'es'} para encontrar lo que dejó Bernardo.</p>` : ''}`,
+      const v = await modal(`<span class="kicker">${ch.name}</span><h3>${cheer()}</h3><p class="lvl-done">Nivel ${levelNumber(ch, L)} superado</p>${reward}${canNext ? `<p>Falta${left === 1 ? '' : 'n'} ${left} nivel${left === 1 ? '' : 'es'} para encontrar lo que dejó Bernardo.</p>` : ''}`,
         canNext ? [['Siguiente nivel', 'next'], ['Volver al mapa', 'map', 1]] : [['Volver al mapa', 'map']]);
       if (v === 'next') { beginLevel(ch, L + 1, false); return; }
     }
@@ -1971,6 +2220,9 @@ class BoardScene extends Phaser.Scene {
     mk('chip', 24, 24, (c) => { c.fillStyle = '#fff'; c.beginPath(); c.moveTo(4, 6); c.lineTo(18, 2); c.lineTo(22, 16); c.lineTo(10, 22); c.lineTo(2, 15); c.closePath(); c.fill(); c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.moveTo(10, 22); c.lineTo(22, 16); c.lineTo(14, 13); c.closePath(); c.fill(); });
     mk('puff', 64, 64, (c) => { const g = c.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,.85)'); g.addColorStop(0.55, 'rgba(255,255,255,.4)'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(0, 0, 64, 64); });
     const wi = this.textures.createCanvas('wire', 128, 128); drawWire(wi.getContext()); wi.refresh();
+    const wd = this.textures.createCanvas('maleza_t', 128, 128); drawWeed(wd.getContext()); wd.refresh();
+    for (const k of ['niebla', 'agua']) { const im = IMG[`img/${k}.png`]; if (im && im.naturalWidth && !this.textures.exists(k)) this.textures.addImage(k, im); }
+    this.fogS = {};
     mk('star', 32, 32, (c) => { c.fillStyle = '#fff'; c.beginPath(); for (let i = 0; i < 8; i++) { const a = -Math.PI / 2 + i * Math.PI / 4, r = i % 2 ? 4 : 15; c.lineTo(16 + Math.cos(a) * r, 16 + Math.sin(a) * r); } c.closePath(); c.fill(); });
     FLOOR_KINDS.forEach((k) => { const im = IMG[`img/suelo_${k}.png`]; if (im && im.naturalWidth && !this.textures.exists(`suelo_${k}`)) this.textures.addImage(`suelo_${k}`, im); });
     this.floorS = [];
@@ -1988,6 +2240,8 @@ class BoardScene extends Phaser.Scene {
   }
   texKey(set, t, s) { return s ? `sp_${['h', 'v', 'c', 'o', 'b'].includes(s) ? s : 'o'}` : `p_${set}_${t}`; }
   key(p) {
+    if (p.t === ROCK && p.k === 'barril') { const k = `barril_${p.hp}`; if (!this.textures.exists(k)) { const tx = this.textures.createCanvas(k, 128, 128); drawBarrel(tx.getContext(), p.hp); tx.refresh(); } return k; }
+    if (p.t === WEED) return 'maleza_t';
     if (p.t === ROCK) { const k = `rock_${this.lv.rskin}_${p.hp}`; if (!this.textures.exists(k)) { const tx = this.textures.createCanvas(k, 128, 128); drawRock(tx.getContext(), this.lv.rskin, p.hp); tx.refresh(); } return k; }
     if (p.t === ITEM) return 'item';
     if (p.w) {
@@ -2006,6 +2260,12 @@ class BoardScene extends Phaser.Scene {
     const skin = FLOOR_SKIN[this.lv.fskin] ? this.lv.fskin : 'tierra', key = `suelo_${skin}`, f = FLOOR_SKIN[skin];
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       const n = this.floor[r][c];
+      if (!n && this.wet && this.wet[r][c] && this.textures.exists('agua')) {
+        const [x, y] = this.xy(r, c);
+        const w = this.add.image(x, y, 'agua').setDisplaySize(CELL, CELL).setDepth(1);
+        this.floorS.push(w);
+        continue;
+      }
       if (!n) continue;
       if (this.textures.exists(key)) {
         const [x, y] = this.xy(r, c);
@@ -2075,9 +2335,58 @@ class BoardScene extends Phaser.Scene {
   ctx() {
     const open = this.state.goals.filter((g) => g.got < g.n);
     return { rand: this.rand, prefer: new Set(open.filter((g) => typeof g.t === 'number').map((g) => g.t)),
-      rock: open.some((g) => g.t === 'rock'), wire: open.some((g) => g.t === 'wire'), floor: open.some((g) => g.t === 'floor') ? this.floor : null };
+      rock: open.some((g) => g.t === 'rock'), wire: open.some((g) => g.t === 'wire'), barrel: open.some((g) => g.t === 'barrel'), weed: open.some((g) => g.t === 'weed'),
+      fog: open.some((g) => g.t === 'fog') ? this.fog : null,
+      floor: open.some((g) => g.t === 'floor' || g.t === 'water') ? this.floor : null,
+      front: this.wet && open.some((g) => g.t === 'water') ? waterFront(this.floor, this.wet) : null };
   }
 
+  // Objetivos que dependen del tablero: la maleza que queda y el agua que llegó abajo
+  syncState() {
+    for (const g of this.state.goals) {
+      if (g.t === 'weed') { const left = this.g.flat().filter((p) => p && p.t === WEED).length; if (g.n0 === undefined) { g.n0 = 1; g.n = left; } g.got = g.n - left; }
+      if (g.t === 'water' && this.lv.water) g.got = flowWater(this.floor, this.lv.water.src).bottom;
+    }
+  }
+  drawFog() {
+    Object.values(this.fogS).forEach((s) => s.destroy());
+    this.fogS = {};
+    if (!this.fog || !this.textures.exists('niebla')) return;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      if (!this.fog[r][c]) continue;
+      const [x, y] = this.xy(r, c);
+      const s = this.add.image(x, y, 'niebla').setDisplaySize(CELL * 1.12, CELL * 1.12).setDepth(3.5).setAlpha(0.97);
+      s.base = s.scaleX;
+      this.tweens.add({ targets: s, x: x + 3, y: y - 2, duration: 1600 + ((r * 7 + c * 3) % 5) * 200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      this.fogS[K(r, c)] = s;
+    }
+  }
+  clearFog(k, delay) {
+    const s = this.fogS[k];
+    if (!s) return;
+    delete this.fogS[k];
+    this.tweens.killTweensOf(s);
+    const [r, c] = RC(k), [x, y] = this.xy(r, c);
+    this.time.delayedCall(delay || 0, () => this.particles(x, y, { n: 5, colors: ['#ffffff', '#e6eef8'], tex: 'puff', speed: 90, size: 0.8, gravity: -60, life: 700, grow: 1.6, depth: 7 }));
+    this.tweens.add({ targets: s, scale: s.base * 1.5, alpha: 0, y: y - CELL * 0.3, duration: 520, delay: delay || 0, ease: 'Quad.easeOut', onComplete: () => s.destroy() });
+  }
+  // El agua avanza: las casillas nuevas se llenan con un chapoteo
+  updateWater() {
+    if (!this.lv.water) return;
+    const prev = this.wet, now = flowWater(this.floor, this.lv.water.src).wet;
+    this.wet = now;
+    const fresh = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (now[r][c] && !(prev && prev[r][c])) fresh.push([r, c]);
+    this.drawFloor();
+    if (!fresh.length) return;
+    Sound.water();
+    fresh.forEach(([r, c], i) => {
+      const [x, y] = this.xy(r, c), d = r * 60 + i * 10;
+      const t = this.floorS.find((s) => Math.abs(s.x - x) < 1 && Math.abs(s.y - y) < 1);
+      if (t) { const b = t.scaleX; t.setScale(b * 0.2).setAlpha(0); this.tweens.add({ targets: t, scale: b, alpha: 1, duration: 320, delay: d, ease: 'Back.easeOut' }); }
+      this.time.delayedCall(d, () => this.particles(x, y, { n: 6, colors: ['#7fe3ff', '#ffffff', '#3cb6e0'], speed: 200, lift: 140, size: 0.4, gravity: 800, life: 500 }));
+    });
+  }
   startLevel(cfg) {
     this.tweens.killAll();
     this.time.removeAllEvents();
@@ -2095,7 +2404,11 @@ class BoardScene extends Phaser.Scene {
       if (findMove(this.g)) break;
     }
     if (cfg.pre && cfg.pre.length) placeSpecials(this.g, cfg.pre, this.rand);
+    this.fog = setupFog(this.lv, this.rand);
+    this.wet = this.lv.water ? flowWater(this.floor, this.lv.water.src).wet : null;
+    this.syncState();
     this.drawFloor();
+    this.drawFog();
     this.sprites = [];
     for (let r = 0; r < ROWS; r++) {
       this.sprites.push([]);
@@ -2200,7 +2513,7 @@ class BoardScene extends Phaser.Scene {
   }
 
   useMove() {
-    this.state.moves--; this.movesUsed++; this.cfg.onUpdate(this.state);
+    this.state.moves--; this.movesUsed++; this.moved = true; this.weedBroken = false; this.cfg.onUpdate(this.state);
     if (this.cfg.tutorial) { this.hideHand(); this.cfg.tutorial = false; save.tutDone = 1; persist(); }
   }
   showHand() {
@@ -2298,9 +2611,13 @@ class BoardScene extends Phaser.Scene {
       first = false;
       if (!res) { if (await this.collectDrops()) continue; break; }
       combo++;
-      const out = applyClear(this.g, res, this.floor);
+      const out = applyClear(this.g, res, this.floor, this.fog);
+      if (out.got.weed) this.weedBroken = true;
       await this.animClear(res, combo, out);
-      this.state.goals.forEach((g) => { g.got += out.got[g.t] || 0; });
+      this.state.goals.forEach((g) => { if (g.t !== 'weed' && g.t !== 'water') g.got += out.got[g.t] || 0; });
+      if (out.got.coin && this.cfg.onCoins) this.cfg.onCoins(out.got.coin);
+      this.updateWater();
+      this.syncState();
       this.cfg.onUpdate(this.state);
       await this.animGravity(gravity(this.g, this.rand, this.cfg.types));
       this.spawnItems();
@@ -2310,7 +2627,23 @@ class BoardScene extends Phaser.Scene {
   }
 
   async afterMove() {
-    const won = this.state.goals.every((g) => g.got >= g.n);
+    let won = this.state.goals.every((g) => g.got >= g.n);
+    if (!won && this.moved && this.lv.weeds && !this.weedBroken && this.state.moves > 0) {
+      const cell = growWeed(this.g, this.rand);
+      if (cell) {
+        const [r, c] = cell, [x, y] = this.xy(r, c);
+        this.setPieceTex(r, c);
+        const sp = this.sprites[r][c];
+        if (sp) { sp.setScale(sp.base * 0.3); this.tweens.add({ targets: sp, scale: sp.base, duration: 360, ease: 'Back.easeOut' }); }
+        this.particles(x, y, { n: 7, colors: ['#5d7a2a', '#8fb84a'], tex: 'chip', speed: 180, lift: 80, size: 0.45, gravity: 600, life: 500, depth: 9 });
+        Sound.grow();
+        toast('¡Creció la maleza!');
+        this.syncState(); this.cfg.onUpdate(this.state);
+        await this.wait(380);
+      }
+    }
+    this.moved = false; this.weedBroken = false;
+    won = this.state.goals.every((g) => g.got >= g.n);
     if (won) {
       this.ended = true; this.busy = false;
       const left = this.state.moves;
@@ -2466,7 +2799,11 @@ class BoardScene extends Phaser.Scene {
   // Piedra que se rompe: destello, se parte en pedazos y deja polvo
   breakRock(s, r, c, delay) {
     const [x, y] = this.xy(r, c), k = ROCK_SKIN[this.lv.rskin] || ROCK_SKIN.piedra;
-    const cols = this.lv.rskin === 'lava' ? [k.base, k.dark, '#ff7a2a', '#ffb347'] : this.lv.rskin === 'hielo' ? ['#ffffff', k.base, k.light] : [k.base, k.dark, k.light];
+    const kind = s.texture.key.startsWith('barril_') ? 'barril' : s.texture.key === 'maleza_t' ? 'maleza' : 'rock';
+    let cols = this.lv.rskin === 'lava' ? [k.base, k.dark, '#ff7a2a', '#ffb347'] : this.lv.rskin === 'hielo' ? ['#ffffff', k.base, k.light] : [k.base, k.dark, k.light];
+    if (kind === 'barril') cols = ['#a8642e', '#7a4420', '#c98a4a', '#3a3a40'];
+    if (kind === 'maleza') cols = ['#5d7a2a', '#8fb84a', '#4a3a1e'];
+    if (kind === 'barril') this.time.delayedCall(delay + 80, () => { this.particles(x, y, { n: 6, colors: ['#ffd65a', '#f2b632', '#fff3c4'], tex: 'star', speed: 280, lift: 260, size: 0.6, gravity: 900, life: 800, spin: 0.3, depth: 9 }); });
     s.setDepth(4);
     const ready = this.wait(delay + 200);
     this.tween({ targets: s, scale: s.base * 1.15, duration: 80, delay, ease: 'Quad.easeOut', onStart: () => s.setTintFill(0xffffff) }).then(() => {
@@ -2483,7 +2820,8 @@ class BoardScene extends Phaser.Scene {
   // Piedra reforzada que pierde una capa: saltan las cintas y chispas
   hitRock(r, c) {
     const s = this.sprites[r][c];
-    const [x, y] = this.xy(r, c), k = ROCK_SKIN[this.lv.rskin] || ROCK_SKIN.piedra;
+    const [x, y] = this.xy(r, c);
+    const k = s && s.texture.key.startsWith('barril_') ? { base: '#a8642e', dark: '#7a4420' } : (ROCK_SKIN[this.lv.rskin] || ROCK_SKIN.piedra);
     Sound.crack();
     this.particles(x, y - CELL * 0.1, { n: 4, colors: ['#5a5f66', '#8a8f96'], tex: 'chip', speed: 300, lift: 220, size: 1.3, gravity: 1400, life: 800, spin: 0.4, depth: 9 });
     this.particles(x, y, { n: 8, colors: ['#ffe28a', '#ffffff'], speed: 320, size: 0.35, gravity: 600, life: 380, add: true });
@@ -2564,6 +2902,7 @@ class BoardScene extends Phaser.Scene {
     const many = out.removed.length > 18;
     for (const k of out.damaged) { const [r, c] = RC(k); this.setPieceTex(r, c); this.hitRock(r, c); }
     if (out.unwired && out.unwired.length) { Sound.snip(); out.unwired.forEach((k) => { const [r, c] = RC(k); this.snapWire(r, c); }); }
+    if (out.fogHit && out.fogHit.length) { Sound.whoosh(); out.fogHit.forEach((k, i) => this.clearFog(k, i * 25)); }
     if (out.floorHit.length) {
       this.drawFloor();
       out.floorHit.forEach((k) => { const [r, c] = RC(k); this.scrubFloor(r, c, 0); });
@@ -2577,7 +2916,7 @@ class BoardScene extends Phaser.Scene {
       let o = null, d = 0;
       for (const t of origins) { const dd = t.s === 'h' ? Math.abs(t.c - c) + (t.r === r ? 0 : 9) : t.s === 'v' ? Math.abs(t.r - r) + (t.c === c ? 0 : 9) : Math.hypot(t.r - r, t.c - c); if (!o || dd < d) { o = t; d = dd; } }
       const delay = o ? Math.min(d, 7) * (o.s === 'h' || o.s === 'v' ? 32 : 45) : 0;
-      if (s.texture.key.startsWith('rock_')) jobs.push(this.breakRock(s, r, c, delay));
+      if (s.texture.key.startsWith('rock_') || s.texture.key.startsWith('barril_') || s.texture.key === 'maleza_t') jobs.push(this.breakRock(s, r, c, delay));
       else if (o && d > 0.1 && FX.on) jobs.push(this.flyAway(s, r, c, o, delay));
       else jobs.push(this.popPiece(s, r, c, delay, many));
     }
@@ -2646,6 +2985,7 @@ imagesReady.then(() => {
 /* ===== Botones ===== */
 $('btn-play').addEventListener('click', async () => {
   Sound.unlock(); Sound.music('game'); Sound.tick();
+  if (!save.profile) await askProfile(false);
   if (!save.seenHelp) { await showHowTo(); renderMap(); playPlace(0); return; }
   renderMap();
 });
@@ -2659,7 +2999,8 @@ $('btn-back').addEventListener('click', async () => {
     loseLife();
   }
   sc.ended = true; sc.setTool(null); sc.hideHand();
-  $('game').classList.remove('special');
+  $('game').classList.remove('special', 'night');
+  NIGHT = false;
   app.classList.remove('memory');
   renderMap();
 });
