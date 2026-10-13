@@ -68,6 +68,17 @@ Cada 10 niveles hay uno **especial**, con menos jugadas, una barra de carrera y 
 
 Los niveles están en la constante `LEVELS` dentro de `index.html`. El progreso de quienes ya jugaban se conserva.
 
+## Tableros con forma y niveles largos
+
+- Algunos niveles tienen tableros con forma (rombo, cruz, copa, escalera, con ventanas...). Están en `SHAPES`, dentro de la lógica del tablero; en cada nivel se eligen con `shape`.
+- Los niveles largos tienen 2 o 3 pantallas hacia abajo o al costado (`screens` y `dir` en el nivel). Al empezar se ve el tablero entero y después la cámara baja a la primera pantalla; al limpiar los obstáculos de una pantalla, pasa a la siguiente.
+
+## Sonido y caras
+
+- Cada acto tiene su música, en tono mayor: guitarra y quena en la ciudad, el tren con armónica en la cordillera, marimba de chacarera en el valle y quena en el origen. La melodía cambia en cada lugar.
+- Las fichas suenan distinto según el acto (en la cordillera, a tren). El Volcán explota, el Cóndor chilla y el Zonda sopla.
+- En los diálogos, el nieto, la nieta, Octavio y doña Rosa cambian de cara (feliz, sorpresa, serio o normal) según lo que dicen. Se puede forzar una cara escribiendo, por ejemplo, `S('nieta:serio', ...)`.
+
 ## Perfil
 
 Al tocar JUGAR por primera vez, el juego pregunta el nombre, cómo festejarte ("¡Qué genio!", "¡Qué genia!" o "¡Qué crack!") y la edad. El nombre aparece en los festejos y en la portada. La edad queda guardada para el día que el juego tenga publicidad: a los menores de 13 no se les puede mostrar publicidad personalizada. Todo se guarda solo en el celular y se cambia desde Opciones → Tu perfil.

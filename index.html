@@ -154,7 +154,11 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .lvl-done{margin-top:-6px!important;font-size:14px!important}
 #card .btn:disabled{opacity:.45}
 #pf-ok,#pf-cancel{width:100%}
+.wallet{display:flex;align-items:center;gap:8px;background:rgba(255,246,230,.08);border-radius:999px;padding:6px 14px 6px 6px;font-size:15px;box-shadow:inset 0 0 0 1.5px rgba(242,182,50,.35)}
+.wallet img{width:28px;height:28px}
+.wallet b{color:var(--gold);font-size:18px}
 .sp-tag{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(#f2c14e,#d99a1e);color:#3a2208;font:800 13px var(--body);padding:5px 12px 5px 5px;border-radius:999px;box-shadow:0 3px 0 #8a5a10}
+.sp-tag.long{background:linear-gradient(#7fd3f0,#3a9fc9);color:#0e2a38;box-shadow:0 3px 0 #1f6a8a;padding:6px 14px}
 .sp-tag img{width:28px;height:28px;border-radius:50%;object-fit:cover;background:#fff6e6}
 .prize-note{font-size:13px!important;color:var(--gold)!important;margin-top:-4px!important}
 .lvl-pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:8px;width:100%}
@@ -227,6 +231,8 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .sheet{margin:0 auto 18px;width:calc(100% - 24px);max-width:540px;box-sizing:border-box;background:var(--glass-strong);border-radius:20px;box-shadow:inset 0 0 0 1.5px var(--line),0 12px 30px rgba(0,0,0,.5);padding:16px;display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;cursor:pointer}
 .sheet.narr{grid-template-columns:1fr}
 .portrait{width:84px;height:84px;border-radius:50%;background:#ddd center/cover no-repeat;box-shadow:0 0 0 3px var(--gold),0 4px 12px rgba(0,0,0,.4)}
+.portrait.pop{animation:facepop .28s ease-out}
+@keyframes facepop{0%{transform:scale(.88)}60%{transform:scale(1.06)}100%{transform:scale(1)}}
 .memory .portrait{box-shadow:0 0 0 3px var(--memory),0 4px 12px rgba(0,0,0,.4);filter:sepia(.35)}
 .say{display:flex;flex-direction:column;gap:6px;min-width:0}
 .who{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -443,9 +449,29 @@ const RC = (k) => [Math.floor(k / COLS), k % COLS];
 // Maleza (t = -5): no se mueve ni cae, se rompe como una piedra y, si en una jugada no rompiste ninguna, crece a una ficha vecina.
 // Niebla: grilla aparte (fog). Tapa la casilla hasta que se rompe algo en ella o al lado.
 // Acequia: el agua entra por arriba (lv.water.src) y corre hacia abajo y a los costados por las casillas sin tierra (floor = 0).
-const ROCK = -2, ITEM = -3, WEED = -5;
+// Hueco (t = -9): casilla que no existe en tableros con forma. No se mueve, no se rompe y frena la caída.
+const ROCK = -2, ITEM = -3, WEED = -5, VOID = -9;
 const isSpecial = (p) => !!(p && p.s);
-const fixed = (p) => !!(p && (p.w || p.t === WEED));
+const fixed = (p) => !!(p && (p.w || p.t === WEED || p.t === VOID));
+const isVoid = (g, r, c) => !!(g[r] && g[r][c] && g[r][c].t === VOID);
+// Formas de tablero ('x' = hueco). Siempre 8 filas de 7.
+const SHAPES = {
+  rombo: ['xx...xx', 'x.....x', '.......', '.......', '.......', '.......', 'x.....x', 'xx...xx'],
+  cruz: ['xx...xx', 'xx...xx', '.......', '.......', '.......', '.......', 'xx...xx', 'xx...xx'],
+  copa: ['.......', '.......', 'x.....x', 'x.....x', 'xx...xx', 'xx...xx', 'xx...xx', 'x.....x'],
+  dientes: ['x.x.x.x', '.......', '.......', '.......', '.......', '.......', '.......', '.......'],
+  escalera: ['....xxx', '....xxx', '.......', '.......', '.......', '.......', 'xxx....', 'xxx....'],
+  ventana: ['.......', '.......', '.......', '..x.x..', '..x.x..', '.......', '.......', '.......'],
+  puente: ['.......', '.......', '.......', 'x.....x', 'xx...xx', 'xx...xx', '.......', '.......'],
+  embudo: ['.......', '.......', 'x.....x', 'xx...xx', 'xx...xx', 'xx...xx', 'xx...xx', 'xx...xx'],
+};
+function applyShape(g, name) {
+  const sh = SHAPES[name];
+  if (!sh) return;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (sh[r][c] === 'x') g[r][c] = { t: VOID };
+}
+// La fila de abajo de cada columna (para la cajita en tableros con forma)
+const bottomRow = (g, c) => { for (let r = ROWS - 1; r >= 0; r--) if (!isVoid(g, r, c)) return r; return -1; };
 
 function findRuns(g) {
   const out = [];
@@ -524,7 +550,7 @@ function pickTarget(g, r, c, ctx, taken) {
     const k = K(rr, cc);
     if ((rr === r && cc === c) || taken.has(k)) continue;
     const q = g[rr][cc];
-    if (!q || q.t === ITEM) continue;
+    if (!q || q.t === ITEM || q.t === VOID) continue;
     const wanted = (q.t >= 0 && ctx.prefer && ctx.prefer.has(q.t)) || (ctx.rock && q.t === ROCK && !q.k) || (ctx.barrel && q.k === 'barril') || (ctx.weed && q.t === WEED)
       || (ctx.floor && ctx.floor[rr][cc] > 0 && (!ctx.front || ctx.front.has(k))) || (ctx.wire && q.w) || (ctx.fog && ctx.fog[rr][cc] > 0);
     if (wanted) pref.push(k); else any.push(k);
@@ -723,7 +749,7 @@ function applyClear(g, res, floor, fog) {
   for (const k of res.clear) {
     const [r, c] = RC(k);
     const p = g[r][c];
-    if (!p || p.t === ITEM) continue;
+    if (!p || p.t === ITEM || p.t === VOID) continue;
     if (p.w) { p.w = 0; add('wire'); unwired.push(k); scrub(r, c); continue; }
     if (p.t === ROCK) {
       p.hp--;
@@ -767,15 +793,16 @@ function growWeed(g, rand) {
 }
 
 // El agua de la acequia: desde las bocas de arriba corre hacia abajo y a los costados por donde no hay tierra
-function flowWater(floor, src) {
+function flowWater(floor, src, g) {
   const wet = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
   const q = [];
-  for (const c of src) if (floor[0][c] === 0) { wet[0][c] = 1; q.push([0, c]); }
+  const open = (r, c) => floor[r][c] === 0 && !(g && isVoid(g, r, c));
+  for (const c of src) if (open(0, c)) { wet[0][c] = 1; q.push([0, c]); }
   while (q.length) {
     const [r, c] = q.shift();
     for (const [dr, dc] of [[1, 0], [0, 1], [0, -1]]) {
       const rr = r + dr, cc = c + dc;
-      if (rr < ROWS && cc >= 0 && cc < COLS && !wet[rr][cc] && floor[rr][cc] === 0) { wet[rr][cc] = 1; q.push([rr, cc]); }
+      if (rr < ROWS && cc >= 0 && cc < COLS && !wet[rr][cc] && open(rr, cc)) { wet[rr][cc] = 1; q.push([rr, cc]); }
     }
   }
   const bottom = wet[ROWS - 1].reduce((a, b) => a + b, 0);
@@ -794,7 +821,7 @@ function waterFront(floor, wet) {
 // La cajita que llegó a la fila de abajo se cobra
 function collectDrops(g) {
   const out = [];
-  for (let c = 0; c < COLS; c++) if (g[ROWS - 1][c] && g[ROWS - 1][c].t === ITEM) { out.push([ROWS - 1, c]); g[ROWS - 1][c] = null; }
+  for (let c = 0; c < COLS; c++) { const r = bottomRow(g, c); if (r >= 0 && g[r][c] && g[r][c].t === ITEM) { out.push([r, c]); g[r][c] = null; } }
   return out;
 }
 
@@ -816,15 +843,18 @@ function pickCells(spec, rand, avoid) {
 }
 function setupObstacles(g, lv, rand) {
   const floor = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-  if (lv.floor) pickCells(lv.floor, rand).forEach(([r, c]) => { floor[r][c] = lv.floor.hp || 1; });
-  const used = new Set();
-  if (lv.rocks) pickCells(lv.rocks, rand).forEach(([r, c]) => { g[r][c] = { t: ROCK, hp: lv.rocks.hp || 1 }; used.add(K(r, c)); });
+  if (lv.shape) applyShape(g, lv.shape);
+  const holes = new Set();
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (isVoid(g, r, c)) holes.add(K(r, c));
+  if (lv.floor) pickCells(lv.floor, rand, holes).forEach(([r, c]) => { floor[r][c] = lv.floor.hp || 1; });
+  const used = new Set(holes);
+  if (lv.rocks) pickCells(lv.rocks, rand, used).forEach(([r, c]) => { g[r][c] = { t: ROCK, hp: lv.rocks.hp || 1 }; used.add(K(r, c)); });
   if (lv.wire) pickCells(lv.wire, rand, used).forEach(([r, c]) => { if (g[r][c].t >= 0 && !g[r][c].s) { g[r][c].w = 1; used.add(K(r, c)); } });
   if (lv.barrels) pickCells(lv.barrels, rand, used).forEach(([r, c]) => { g[r][c] = { t: ROCK, hp: lv.barrels.hp || 3, k: 'barril' }; used.add(K(r, c)); });
   if (lv.weeds) pickCells(lv.weeds, rand, used).forEach(([r, c]) => { g[r][c] = { t: WEED }; used.add(K(r, c)); });
   if (lv.water) { for (const c of lv.water.src) floor[0][c] = 0; }
   if (lv.drop) {
-    const cols = [1, 2, 3, 4, 5].filter((c) => !used.has(K(0, c)));
+    const cols = [1, 2, 3, 4, 5].filter((c) => !used.has(K(0, c)) && !isVoid(g, 0, c));
     for (let i = 0; i < Math.min(lv.drop.start || 1, cols.length); i++) {
       const c = cols.splice(Math.floor(rand() * cols.length), 1)[0];
       g[0][c] = { t: ITEM };
@@ -832,9 +862,11 @@ function setupObstacles(g, lv, rand) {
   }
   return floor;
 }
-function setupFog(lv, rand) {
+function setupFog(lv, rand, g) {
   const fog = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-  if (lv.fog) pickCells(lv.fog, rand).forEach(([r, c]) => { fog[r][c] = 1; });
+  const holes = new Set();
+  if (g) for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (isVoid(g, r, c)) holes.add(K(r, c));
+  if (lv.fog) pickCells(lv.fog, rand, holes).forEach(([r, c]) => { fog[r][c] = 1; });
   return fog;
 }
 
@@ -885,7 +917,7 @@ function gravity(g, rand, types) {
   return { moves, spawns };
 }
 
-const movable = (p) => p && p.t !== ROCK && p.t !== WEED && !p.w;
+const movable = (p) => p && p.t !== ROCK && p.t !== WEED && p.t !== VOID && !p.w;
 function swapCells(g, a, b) { const t = g[a[0]][a[1]]; g[a[0]][a[1]] = g[b[0]][b[1]]; g[b[0]][b[1]] = t; }
 
 function findMove(g) {
@@ -983,7 +1015,7 @@ function placeSpecials(g, list, rand) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { findVisibleMove, reshuffleVisible, ROCK, ITEM, WEED, growWeed, flowWater, waterFront, setupFog, fixed, collectDrops, setupObstacles, movable, COLS, ROWS, K, RC, findRuns, findSquares, hasMatch, findGroups, resolveStep, activateAt, activateSwap, applyClear, gravity, swapCells, findMove, newGrid, reshuffle, placeSpecials, mostCommonColor };
+if (typeof module !== 'undefined') module.exports = { VOID, SHAPES, applyShape, isVoid, findVisibleMove, reshuffleVisible, ROCK, ITEM, WEED, growWeed, flowWater, waterFront, setupFog, fixed, collectDrops, setupObstacles, movable, COLS, ROWS, K, RC, findRuns, findSquares, hasMatch, findGroups, resolveStep, activateAt, activateSwap, applyClear, gravity, swapCells, findMove, newGrid, reshuffle, placeSpecials, mostCommonColor };
 </script>
 
 <script>
@@ -1018,7 +1050,7 @@ const imagesReady = Promise.all([...Object.values(SETS).flat().map((p) => p.img)
 /* ===== Niveles de cada lugar ===== */
 // 1: juntar fichas. 2: obstáculo del lugar. 3: la mecánica del acto (en el Acto 1, el alambre de viña). Último: bajar la cajita de Bernardo.
 // Acto 1: alambre. Acto 2: barriles y niebla. Acto 3: maleza. Acto 4: acequias. special: nivel especial (cada 10).
-const LEVELS = {"prologo":[{"moves":14,"types":5,"goals":[[2,14],[1,14]]},{"moves":16,"types":5,"goals":[["floor",16]],"floor":{"rows":[4,7],"n":16,"hp":1},"fskin":"polvo"},{"moves":16,"types":5,"goals":[["wire",4],[0,12]],"wire":{"rows":[3,5],"n":4}},{"moves":18,"types":5,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"finca":[{"moves":16,"types":5,"goals":[[0,20],[2,18]]},{"moves":16,"types":5,"goals":[["floor",24]],"floor":{"rows":[3,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":17,"types":5,"goals":[["wire",6],[2,14]],"wire":{"rows":[2,6],"n":6}},{"moves":20,"types":5,"goals":[["drop",2],[0,10]],"drop":{"n":2,"start":1}}],"ruinas":[{"moves":17,"types":5,"goals":[[3,22],[4,22]]},{"moves":13,"types":5,"goals":[["rock",12],[3,14]],"rocks":{"rows":[3,6],"n":12,"hp":1},"rskin":"ladrillo","special":"reloj"},{"moves":18,"types":5,"goals":[["wire",8],[4,16]],"wire":{"rows":[2,6],"n":8}},{"moves":18,"types":5,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[5,7],"n":8,"hp":1},"rskin":"ladrillo"}],"plaza":[{"moves":17,"types":5,"goals":[[2,24],[4,20]]},{"moves":18,"types":5,"goals":[["floor",22],[2,10]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":19,"types":5,"goals":[["wire",9],["floor",8]],"wire":{"rows":[1,5],"n":9},"floor":{"rows":[6,7],"n":8,"hp":1},"fskin":"polvo"},{"moves":20,"types":5,"goals":[["drop",2],[2,12]],"drop":{"n":2,"start":1}}],"parque":[{"moves":19,"types":5,"goals":[[2,26],[1,22]]},{"moves":19,"types":5,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":20,"types":5,"goals":[["wire",10],[1,14]],"wire":{"rows":[1,6],"n":10}},{"moves":17,"types":5,"goals":[["drop",2],["wire",4]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":4},"special":"octavio"}],"cerro":[{"moves":21,"types":6,"goals":[[1,20],[5,18]]},{"moves":21,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["wire",10],["floor",10]],"wire":{"rows":[1,5],"n":10},"floor":{"rows":[5,7],"n":10,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"bodega":[{"moves":22,"types":6,"goals":[[0,24],[5,20]]},{"moves":22,"types":6,"goals":[["rock",12],[0,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"ladrillo"},{"moves":25,"types":6,"goals":[["wire",12],[0,14]],"wire":{"rows":[1,6],"n":12}},{"moves":27,"types":6,"goals":[["drop",2],["wire",6]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":6}}],"villavicencio":[{"moves":20,"types":6,"goals":[[5,18],[0,18],[3,14]]},{"moves":18,"types":6,"goals":[["rock",12],[5,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"piedra","special":"octavio"},{"moves":22,"types":6,"goals":[["barrel",4],[1,14]],"barrels":{"rows":[3,6],"n":4,"hp":3}},{"moves":25,"types":6,"goals":[["drop",2],["floor",10]],"drop":{"n":2,"start":1},"floor":{"rows":[6,7],"n":10,"hp":1},"fskin":"tierra"}],"cacheuta":[{"moves":23,"types":6,"goals":[[2,24],[4,20]]},{"moves":22,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":18,"types":6,"goals":[["fog",30],[0,14]],"fog":{"rows":[0,6],"n":30}},{"moves":27,"types":6,"goals":[["drop",2],["fog",10]],"drop":{"n":2,"start":1},"fog":{"rows":[3,7],"n":10}}],"potrerillos":[{"moves":25,"types":6,"goals":[[2,26],[4,16]]},{"moves":24,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":24,"types":6,"goals":[["barrel",4],["fog",14]],"barrels":{"rows":[4,6],"n":4,"hp":3},"fog":{"rows":[1,4],"n":14}},{"moves":23,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"special":"agua"}],"uspallata":[{"moves":26,"types":6,"goals":[[1,26],[3,22]]},{"moves":19,"types":6,"goals":[["rock",14],[2,12]],"rocks":{"rows":[2,6],"n":14,"hp":1},"rskin":"ladrillo"},{"moves":15,"types":6,"goals":[["fog",30]],"fog":{"rows":[0,7],"n":30}},{"moves":26,"types":6,"goals":[["drop",2],["barrel",3]],"drop":{"n":2,"start":1},"barrels":{"rows":[4,6],"n":3,"hp":3}}],"puente":[{"moves":22,"types":6,"goals":[[0,22],[2,22],[1,14]]},{"moves":22,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"nieve"},{"moves":24,"types":6,"goals":[["barrel",6]],"barrels":{"rows":[2,6],"n":6,"hp":3}},{"moves":28,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[3,5],"n":6,"hp":1},"rskin":"hielo"}],"aconcagua":[{"moves":24,"types":6,"goals":[[3,24],[5,22]]},{"moves":20,"types":6,"goals":[["floor",20],["fog",10]],"floor":{"rows":[3,7],"n":20,"hp":1},"fskin":"nieve","fog":{"rows":[0,3],"n":10},"special":"viento"},{"moves":24,"types":6,"goals":[["fog",20],["barrel",3]],"fog":{"rows":[1,5],"n":20},"barrels":{"rows":[5,6],"n":3,"hp":3}},{"moves":26,"types":6,"goals":[["drop",2],["floor",12]],"drop":{"n":2,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"cristo":[{"moves":22,"types":6,"goals":[[3,24],[5,24]]},{"moves":26,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"hielo"},{"moves":25,"types":6,"goals":[["barrel",4],["fog",18]],"barrels":{"rows":[3,6],"n":4,"hp":3},"fog":{"rows":[0,4],"n":18}},{"moves":30,"types":6,"goals":[["drop",3],["floor",12]],"drop":{"n":3,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"manzano":[{"moves":23,"types":6,"goals":[[0,24],[1,22]]},{"moves":20,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":22,"types":6,"goals":[["weed",6]],"weeds":{"rows":[5,7],"n":6}},{"moves":20,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"special":"noche"}],"diamante":[{"moves":23,"types":6,"goals":[[2,26],[5,22],[3,16]]},{"moves":18,"types":6,"goals":[["rock",14],[2,12]],"rocks":{"rows":[2,6],"n":14,"hp":1},"rskin":"piedra"},{"moves":20,"types":6,"goals":[["weed",8]],"weeds":{"rows":[4,7],"n":8}},{"moves":26,"types":6,"goals":[["drop",2],["weed",4]],"drop":{"n":2,"start":1},"weeds":{"rows":[6,7],"n":4}}],"uco":[{"moves":26,"types":6,"goals":[[0,30],[1,20]]},{"moves":26,"types":6,"goals":[["floor",26],[0,12]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"tierra"},{"moves":25,"types":6,"goals":[["weed",6],["wire",6]],"weeds":{"rows":[5,7],"n":6},"wire":{"rows":[1,4],"n":6}},{"moves":30,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"atuel":[{"moves":24,"types":6,"goals":[[3,24],[4,24],[5,18]]},{"moves":24,"types":6,"goals":[["rock",12]],"rocks":{"rows":[2,7],"n":12,"hp":2},"rskin":"piedra","special":"octavio"},{"moves":20,"types":6,"goals":[["weed",10]],"weeds":{"rows":[3,7],"n":10}},{"moves":30,"types":6,"goals":[["drop",2],["floor",14]],"drop":{"n":2,"start":1},"floor":{"rows":[4,7],"n":14,"hp":1},"fskin":"arena"}],"reyunos":[{"moves":26,"types":6,"goals":[[4,30],[2,26]]},{"moves":24,"types":6,"goals":[["floor",26]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"arena"},{"moves":26,"types":6,"goals":[["weed",6],["fog",12]],"weeds":{"rows":[5,7],"n":6},"fog":{"rows":[0,3],"n":12}},{"moves":27,"types":6,"goals":[["drop",3],["weed",4]],"drop":{"n":3,"start":1},"weeds":{"rows":[6,7],"n":4}}],"caverna":[{"moves":26,"types":6,"goals":[[3,28],[1,24]]},{"moves":25,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"piedra"},{"moves":21,"types":6,"goals":[["water",4]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"tierra","water":{"src":[3]}},{"moves":24,"types":6,"goals":[["drop",2],["fog",10]],"drop":{"n":2,"start":1},"fog":{"rows":[2,5],"n":10},"special":"linterna"}],"pincheira":[{"moves":24,"types":6,"goals":[[5,28],[2,26]]},{"moves":24,"types":6,"goals":[["floor",26]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"polvo"},{"moves":22,"types":6,"goals":[["water",5]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"polvo","water":{"src":[0]}},{"moves":26,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"llancanelo":[{"moves":25,"types":6,"goals":[[0,26],[3,22]]},{"moves":21,"types":6,"goals":[["floor",28]],"floor":{"rows":[1,7],"n":28,"hp":1},"fskin":"arena"},{"moves":22,"types":6,"goals":[["water",6]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"arena","water":{"src":[2,4]}},{"moves":28,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"payunia":[{"moves":25,"types":6,"goals":[[0,26],[3,26],[5,22]]},{"moves":24,"types":6,"goals":[["rock",10],["floor",18]],"rocks":{"rows":[2,5],"n":10,"hp":2},"rskin":"lava","floor":{"rows":[3,7],"n":18,"hp":1},"fskin":"ceniza","special":"llave"},{"moves":20,"types":6,"goals":[["water",4]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"ceniza","water":{"src":[3]}},{"moves":30,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[4,7],"n":6,"hp":1},"rskin":"lava"}],"guanacache":[{"moves":27,"types":6,"goals":[[2,30],[4,26]]},{"moves":25,"types":6,"goals":[["floor",28]],"floor":{"rows":[1,7],"n":28,"hp":1},"fskin":"arena"},{"moves":26,"types":6,"goals":[["water",5]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"arena","water":{"src":[1,5]}},{"moves":30,"types":6,"goals":[["drop",2],["weed",4]],"drop":{"n":2,"start":1},"weeds":{"rows":[6,7],"n":4}}],"epilogo":[{"moves":25,"types":6,"goals":[[0,26],[1,24]]},{"moves":24,"types":6,"goals":[["floor",30]],"floor":{"rows":[1,7],"n":30,"hp":1},"fskin":"tierra"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}},{"moves":26,"types":6,"goals":[["water",6]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"tierra","water":{"src":[3]},"special":"final"}]};
+const LEVELS = {"prologo":[{"moves":14,"types":5,"goals":[[2,14],[1,14]]},{"moves":16,"types":5,"goals":[["floor",16]],"floor":{"rows":[4,7],"n":16,"hp":1},"fskin":"polvo"},{"moves":16,"types":5,"goals":[["wire",4],[0,12]],"wire":{"rows":[3,5],"n":4}},{"moves":18,"types":5,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"finca":[{"moves":16,"types":5,"goals":[[0,20],[2,18]]},{"moves":16,"types":5,"goals":[["floor",24]],"floor":{"rows":[3,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":17,"types":5,"goals":[["wire",6],[2,14]],"wire":{"rows":[2,6],"n":6}},{"moves":20,"types":5,"goals":[["drop",2],[0,10]],"drop":{"n":2,"start":1}}],"ruinas":[{"moves":17,"types":5,"goals":[[3,22],[4,22]]},{"moves":13,"types":5,"goals":[["rock",12],[3,14]],"rocks":{"rows":[3,6],"n":12,"hp":1},"rskin":"ladrillo","special":"reloj"},{"moves":18,"types":5,"goals":[["wire",8],[4,16]],"wire":{"rows":[2,6],"n":8}},{"moves":18,"types":5,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[5,7],"n":8,"hp":1},"rskin":"ladrillo"}],"plaza":[{"moves":15,"types":5,"goals":[[2,24],[4,20]],"shape":"rombo"},{"moves":18,"types":5,"goals":[["floor",22],[2,10]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":19,"types":5,"goals":[["wire",9],["floor",8]],"wire":{"rows":[1,5],"n":9},"floor":{"rows":[6,7],"n":8,"hp":1},"fskin":"polvo","shape":"ventana"},{"moves":20,"types":5,"goals":[["drop",2],[2,12]],"drop":{"n":2,"start":1}}],"parque":[{"moves":15,"types":5,"goals":[[2,26],[1,22]],"shape":"dientes"},{"moves":19,"types":5,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":20,"types":5,"goals":[["wire",10],[1,14]],"wire":{"rows":[1,6],"n":10}},{"moves":16,"types":5,"goals":[["drop",2],["wire",4]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":4},"special":"octavio","shape":"rombo"}],"cerro":[{"moves":23,"types":6,"goals":[[1,20],[5,18]],"shape":"cruz"},{"moves":21,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["wire",10],["floor",10]],"wire":{"rows":[1,5],"n":10},"floor":{"rows":[5,7],"n":10,"hp":1},"fskin":"polvo"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"shape":"cruz"}],"bodega":[{"moves":26,"types":6,"goals":[[0,24],[5,20]],"shape":"puente"},{"moves":30,"types":6,"goals":[["rock",16],[0,10]],"dir":"v","screens":[{"rocks":{"rows":[2,7],"n":8,"hp":1}},{"rocks":{"rows":[2,7],"n":8,"hp":1}}],"rskin":"ladrillo"},{"moves":25,"types":6,"goals":[["wire",12],[0,14]],"wire":{"rows":[1,6],"n":12}},{"moves":27,"types":6,"goals":[["drop",2],["wire",6]],"drop":{"n":2,"start":1},"wire":{"rows":[3,6],"n":6}}],"villavicencio":[{"moves":20,"types":6,"goals":[[5,18],[0,18],[3,14]],"shape":"rombo"},{"moves":18,"types":6,"goals":[["rock",12],[5,14]],"rocks":{"rows":[2,6],"n":12,"hp":1},"rskin":"piedra","special":"octavio"},{"moves":22,"types":6,"goals":[["barrel",4],[1,14]],"barrels":{"rows":[3,6],"n":4,"hp":3}},{"moves":25,"types":6,"goals":[["drop",2],["floor",10]],"drop":{"n":2,"start":1},"floor":{"rows":[6,7],"n":10,"hp":1},"fskin":"tierra"}],"cacheuta":[{"moves":23,"types":6,"goals":[[2,24],[4,20]]},{"moves":22,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena","shape":"escalera"},{"moves":18,"types":6,"goals":[["fog",30],[0,14]],"fog":{"rows":[0,6],"n":30}},{"moves":27,"types":6,"goals":[["drop",2],["fog",10]],"drop":{"n":2,"start":1},"fog":{"rows":[3,7],"n":10}}],"potrerillos":[{"moves":25,"types":6,"goals":[[2,26],[4,16]],"shape":"cruz"},{"moves":24,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"arena"},{"moves":24,"types":6,"goals":[["barrel",4],["fog",14]],"barrels":{"rows":[4,6],"n":4,"hp":3},"fog":{"rows":[1,4],"n":14}},{"moves":23,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"special":"agua"}],"uspallata":[{"moves":26,"types":6,"goals":[[1,26],[3,22]],"shape":"dientes"},{"moves":30,"types":6,"goals":[["rock",18]],"dir":"v","screens":[{"rocks":{"rows":[1,7],"n":9,"hp":1}},{"rocks":{"rows":[1,7],"n":9,"hp":1}}],"rskin":"ladrillo"},{"moves":15,"types":6,"goals":[["fog",30]],"fog":{"rows":[0,7],"n":30}},{"moves":26,"types":6,"goals":[["drop",2],["barrel",3]],"drop":{"n":2,"start":1},"barrels":{"rows":[4,6],"n":3,"hp":3}}],"puente":[{"moves":22,"types":6,"goals":[[0,22],[2,22],[1,14]]},{"moves":22,"types":6,"goals":[["floor",22]],"floor":{"rows":[3,7],"n":22,"hp":1},"fskin":"nieve"},{"moves":36,"types":6,"goals":[["barrel",6]],"barrels":{"rows":[2,6],"n":6,"hp":3},"shape":"ventana"},{"moves":28,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[3,5],"n":6,"hp":1},"rskin":"hielo"}],"aconcagua":[{"moves":30,"types":6,"goals":[[3,24],[5,22]],"shape":"copa"},{"moves":20,"types":6,"goals":[["floor",20],["fog",10]],"floor":{"rows":[3,7],"n":20,"hp":1},"fskin":"nieve","fog":{"rows":[0,3],"n":10},"special":"viento"},{"moves":24,"types":6,"goals":[["fog",20],["barrel",3]],"fog":{"rows":[1,5],"n":20},"barrels":{"rows":[5,6],"n":3,"hp":3}},{"moves":26,"types":6,"goals":[["drop",2],["floor",12]],"drop":{"n":2,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"cristo":[{"moves":28,"types":6,"goals":[[3,24],[5,24]],"shape":"escalera"},{"moves":26,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"hielo"},{"moves":46,"types":6,"goals":[["fog",24],["barrel",6]],"dir":"h","screens":[{"fog":{"rows":[0,4],"n":8},"barrels":{"rows":[5,6],"n":2,"hp":3}},{"fog":{"rows":[0,4],"n":8},"barrels":{"rows":[5,6],"n":2,"hp":3}},{"fog":{"rows":[0,4],"n":8},"barrels":{"rows":[5,6],"n":2,"hp":3}}]},{"moves":30,"types":6,"goals":[["drop",3],["floor",12]],"drop":{"n":3,"start":1},"floor":{"rows":[5,7],"n":12,"hp":1},"fskin":"nieve"}],"manzano":[{"moves":23,"types":6,"goals":[[0,24],[1,22]],"shape":"rombo"},{"moves":20,"types":6,"goals":[["floor",24]],"floor":{"rows":[2,7],"n":24,"hp":1},"fskin":"tierra"},{"moves":22,"types":6,"goals":[["weed",6]],"weeds":{"rows":[5,7],"n":6}},{"moves":20,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1},"special":"noche"}],"diamante":[{"moves":23,"types":6,"goals":[[2,26],[5,22],[3,16]]},{"moves":24,"types":6,"goals":[["rock",14],[2,12]],"rocks":{"rows":[2,6],"n":14,"hp":1},"rskin":"piedra","shape":"puente"},{"moves":30,"types":6,"goals":[["weed",8]],"dir":"v","screens":[{"weeds":{"rows":[5,7],"n":4}},{"weeds":{"rows":[5,7],"n":4}}]},{"moves":26,"types":6,"goals":[["drop",2],["weed",4]],"drop":{"n":2,"start":1},"weeds":{"rows":[6,7],"n":4}}],"uco":[{"moves":26,"types":6,"goals":[[0,30],[1,20]]},{"moves":26,"types":6,"goals":[["floor",26],[0,12]],"floor":{"rows":[2,7],"n":26,"hp":1},"fskin":"tierra"},{"moves":27,"types":6,"goals":[["weed",6],["wire",6]],"weeds":{"rows":[5,7],"n":6},"wire":{"rows":[1,4],"n":6},"shape":"cruz"},{"moves":30,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"atuel":[{"moves":30,"types":6,"goals":[[3,24],[4,24],[5,18]],"shape":"ventana"},{"moves":24,"types":6,"goals":[["rock",12]],"rocks":{"rows":[2,7],"n":12,"hp":2},"rskin":"piedra","special":"octavio"},{"moves":20,"types":6,"goals":[["weed",10]],"weeds":{"rows":[3,7],"n":10}},{"moves":30,"types":6,"goals":[["drop",2],["floor",14]],"drop":{"n":2,"start":1},"floor":{"rows":[4,7],"n":14,"hp":1},"fskin":"arena"}],"reyunos":[{"moves":26,"types":6,"goals":[[4,30],[2,26]]},{"moves":46,"types":6,"goals":[["floor",42]],"dir":"v","screens":[{"floor":{"rows":[2,7],"n":14,"hp":1}},{"floor":{"rows":[2,7],"n":14,"hp":1}},{"floor":{"rows":[2,7],"n":14,"hp":1}}],"fskin":"arena"},{"moves":26,"types":6,"goals":[["weed",6],["fog",12]],"weeds":{"rows":[5,7],"n":6},"fog":{"rows":[0,3],"n":12}},{"moves":27,"types":6,"goals":[["drop",3],["weed",4]],"drop":{"n":3,"start":1},"weeds":{"rows":[6,7],"n":4},"shape":"dientes"}],"caverna":[{"moves":32,"types":6,"goals":[[3,28],[1,24]],"shape":"embudo"},{"moves":25,"types":6,"goals":[["rock",10]],"rocks":{"rows":[3,7],"n":10,"hp":2},"rskin":"piedra"},{"moves":21,"types":6,"goals":[["water",4]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"tierra","water":{"src":[3]},"shape":"ventana"},{"moves":24,"types":6,"goals":[["drop",2],["fog",10]],"drop":{"n":2,"start":1},"fog":{"rows":[2,5],"n":10},"special":"linterna"}],"pincheira":[{"moves":32,"types":6,"goals":[[5,28],[2,26]],"shape":"cruz"},{"moves":36,"types":6,"goals":[["floor",32]],"dir":"h","screens":[{"floor":{"rows":[2,7],"n":16,"hp":1}},{"floor":{"rows":[2,7],"n":16,"hp":1}}],"fskin":"polvo"},{"moves":22,"types":6,"goals":[["water",5]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"polvo","water":{"src":[0]}},{"moves":26,"types":6,"goals":[["drop",2],["rock",8]],"drop":{"n":2,"start":1},"rocks":{"rows":[4,7],"n":8,"hp":1},"rskin":"piedra"}],"llancanelo":[{"moves":25,"types":6,"goals":[[0,26],[3,22]]},{"moves":32,"types":6,"goals":[["floor",30]],"dir":"v","screens":[{"floor":{"rows":[1,7],"n":15,"hp":1}},{"floor":{"rows":[1,7],"n":15,"hp":1}}],"fskin":"arena"},{"moves":26,"types":6,"goals":[["water",6]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"arena","water":{"src":[2,4]},"shape":"ventana"},{"moves":28,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}}],"payunia":[{"moves":27,"types":6,"goals":[[0,26],[3,26],[5,22]],"shape":"escalera"},{"moves":24,"types":6,"goals":[["rock",10],["floor",18]],"rocks":{"rows":[2,5],"n":10,"hp":2},"rskin":"lava","floor":{"rows":[3,7],"n":18,"hp":1},"fskin":"ceniza","special":"llave"},{"moves":20,"types":6,"goals":[["water",4]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"ceniza","water":{"src":[3]}},{"moves":30,"types":6,"goals":[["drop",3],["rock",6]],"drop":{"n":3,"start":1},"rocks":{"rows":[4,7],"n":6,"hp":1},"rskin":"lava"}],"guanacache":[{"moves":29,"types":6,"goals":[[2,30],[4,26]],"shape":"rombo"},{"moves":25,"types":6,"goals":[["floor",28]],"floor":{"rows":[1,7],"n":28,"hp":1},"fskin":"arena"},{"moves":26,"types":6,"goals":[["water",5]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"arena","water":{"src":[1,5]}},{"moves":30,"types":6,"goals":[["drop",2],["weed",4]],"drop":{"n":2,"start":1},"weeds":{"rows":[6,7],"n":4}}],"epilogo":[{"moves":25,"types":6,"goals":[[0,26],[1,24]]},{"moves":26,"types":6,"goals":[["floor",30]],"floor":{"rows":[1,7],"n":30,"hp":1},"fskin":"tierra","shape":"copa"},{"moves":24,"types":6,"goals":[["drop",2]],"drop":{"n":2,"start":1}},{"moves":26,"types":6,"goals":[["water",6]],"floor":{"rows":[0,7],"n":56,"hp":1},"fskin":"tierra","water":{"src":[3]},"special":"final"}]};
 const FLOOR_SKIN = {
   tierra: { name: 'tierra seca', color: '#8a5a34', dot: '#5e3a1e' }, nieve: { name: 'nieve', color: '#eef6ff', dot: '#b9d4ec' },
   arena: { name: 'arena', color: '#e2c48a', dot: '#b8955a' }, polvo: { name: 'polvo', color: '#c9b38a', dot: '#9c8460' },
@@ -1216,33 +1248,117 @@ const Sound = (() => {
   }
   const ok = () => ctx && !muted;
   const PENTA = [72, 74, 76, 79, 81, 84, 86, 88, 91];
+  let theme = 1, seedBase = 1;
+
+  /* ---- Instrumentos ---- */
+  function env(g, t, a, peak, dur) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); }
+  function mallet(m, t, vol, dest) { // marimba
+    const f = mf(m);
+    [[1, 1, 0.55], [4, 0.28, 0.16], [9.8, 0.08, 0.05]].forEach(([k, v, d]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f * k;
+      env(g, t, 0.004, vol * v, d); o.connect(g); g.connect(dest || sfx); o.start(t); o.stop(t + d + 0.05);
+    });
+  }
+  function flute(m, t, dur, vol, dest) { // quena
+    const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+    o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = mf(m); o2.frequency.value = mf(m) * 2;
+    lfo.frequency.value = 5.2; lg.gain.value = mf(m) * 0.012; lfo.connect(lg); lg.connect(o.frequency); lg.connect(o2.frequency);
+    const g2 = ctx.createGain(); g2.gain.value = 0.18; o2.connect(g2); g2.connect(g);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.06); g.gain.setValueAtTime(vol * 0.8, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(dest || sfx);
+    [o, o2, lfo].forEach((x) => { x.start(t); x.stop(t + dur + 0.05); });
+  }
+  function reed(m, t, dur, vol, dest) { // armónica / acordeón
+    const o = ctx.createOscillator(), o2 = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = 'square'; o2.type = 'sawtooth'; o.frequency.value = mf(m); o2.frequency.value = mf(m) * 1.004;
+    lp.type = 'lowpass'; lp.frequency.value = 1700;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.03); g.gain.setValueAtTime(vol * 0.75, t + dur * 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(dest || sfx);
+    [o, o2].forEach((x) => { x.start(t); x.stop(t + dur + 0.05); });
+  }
+  function bassN(m, t, dur, vol, dest) { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.value = mf(m); env(g, t, 0.01, vol, dur); o.connect(g); g.connect(dest || sfx); o.start(t); o.stop(t + dur + 0.05); }
+  function drum(t, f1, f2, dur, vol, dest) { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + dur); env(g, t, 0.003, vol, dur); o.connect(g); g.connect(dest || sfx); o.start(t); o.stop(t + dur + 0.05); }
+  function hiss(t, dur, freq, vol, dest, type) {
+    const len = Math.max(1, Math.floor(ctx.sampleRate * dur)), b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const sN = ctx.createBufferSource(); sN.buffer = b; const f = ctx.createBiquadFilter(); f.type = type || 'highpass'; f.frequency.value = freq; f.Q.value = 0.9;
+    const g = ctx.createGain(); env(g, t, 0.002, vol, dur); sN.connect(f); f.connect(g); g.connect(dest || sfx); sN.start(t);
+  }
+  function bell(m, t, vol, dest) { [[1, 1, 1.2], [2.76, 0.4, 0.6], [5.4, 0.15, 0.3]].forEach(([k, v, d]) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = mf(m) * k; env(g, t, 0.003, vol * v, d); o.connect(g); g.connect(dest || sfx); o.start(t); o.stop(t + d + 0.05); }); }
+
+  /* ---- Sonidos del tablero según el acto ---- */
   const api = {
     unlock,
+    theme(act, seed) {
+      const changed = act !== theme || seed !== seedBase;
+      theme = act || 1; seedBase = seed || 1;
+      if (changed && musicMode === 'game') api.music('game');
+    },
     swap() { if (!ok()) return; noise(ctx.currentTime, 0.13, 700, 2600, 0.22); },
     bad() { if (!ok()) return; const t = ctx.currentTime; tone(240, t, 0.09, 'square', 0.05); tone(190, t + 0.1, 0.12, 'square', 0.05); },
-    pop(combo) { if (!ok()) return; const t = ctx.currentTime, m = PENTA[Math.min(PENTA.length - 1, combo - 1)]; pluck(m, t, 0.9); tone(mf(m + 12), t, 0.12, 'sine', 0.06); },
-    special() { if (!ok()) return; const t = ctx.currentTime; [76, 79, 84].forEach((m, i) => pluck(m, t + i * 0.06, 0.7)); },
-    wind() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.45, 400, 3200, 0.3); noise(t + 0.05, 0.4, 3000, 600, 0.18); },
-    boom() { if (!ok()) return; const t = ctx.currentTime; tone(110, t, 0.5, 'sine', 0.35, 38); noise(t, 0.55, 900, 90, 0.5, 'lowpass'); },
+    pop(combo) {
+      if (!ok()) return;
+      const t = ctx.currentTime, i = Math.min(PENTA.length - 1, combo - 1), m = PENTA[i];
+      if (theme === 2) { // cordillera: el tren
+        hiss(t, 0.09, 900, 0.32, sfx, 'bandpass'); hiss(t + 0.11, 0.07, 1200, 0.2, sfx, 'bandpass');
+        bell(m + 12, t + 0.02, 0.09);
+        if (combo >= 3) { const w = ctx.currentTime + 0.12; [[880, 1046], [1108, 1318]].forEach(([a, b2]) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(a, w); o.frequency.linearRampToValueAtTime(b2, w + 0.12); env(g, w, 0.04, 0.07, 0.7); o.connect(g); g.connect(sfx); o.start(w); o.stop(w + 0.75); }); }
+      } else if (theme === 3) { // valle: marimba
+        mallet(m, t, 0.5); mallet(m + 7, t + 0.06, 0.22);
+      } else if (theme === 4) { // origen: gota de agua
+        const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(mf(m) * 0.5, t); o.frequency.exponentialRampToValueAtTime(mf(m) * 1.2, t + 0.09);
+        env(g, t, 0.003, 0.22, 0.22); o.connect(g); g.connect(sfx); o.start(t); o.stop(t + 0.3);
+        bell(m + 12, t + 0.05, 0.05);
+      } else { pluck(m, t, 0.9); tone(mf(m + 12), t, 0.12, 'sine', 0.06); }
+    },
+    special() { if (!ok()) return; const t = ctx.currentTime; [76, 79, 84].forEach((m, i) => (theme === 3 ? mallet(m, t + i * 0.06, 0.4) : pluck(m, t + i * 0.06, 0.7))); },
+    // Zonda: ráfaga de viento caliente que sube y baja, con silbido
+    wind() {
+      if (!ok()) return; const t = ctx.currentTime;
+      const len = Math.floor(ctx.sampleRate * 1.2), b2 = ctx.createBuffer(1, len, ctx.sampleRate), d = b2.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource(); src.buffer = b2; const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.2;
+      bp.frequency.setValueAtTime(300, t); bp.frequency.exponentialRampToValueAtTime(2600, t + 0.45); bp.frequency.exponentialRampToValueAtTime(500, t + 1.15);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.55, t + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.15);
+      src.connect(bp); bp.connect(g); g.connect(sfx); src.start(t);
+      const o = ctx.createOscillator(), og = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(900, t); o.frequency.linearRampToValueAtTime(1500, t + 0.4); o.frequency.linearRampToValueAtTime(1100, t + 0.9);
+      env(og, t + 0.05, 0.2, 0.035, 0.9); o.connect(og); og.connect(sfx); o.start(t); o.stop(t + 1.1);
+    },
+    // Volcán: explosión grave con retumbo y piedritas
+    boom() {
+      if (!ok()) return; const t = ctx.currentTime;
+      tone(95, t, 0.9, 'sine', 0.5, 28); noise(t, 1.0, 1400, 70, 0.6, 'lowpass');
+      for (let i = 0; i < 7; i++) hiss(t + 0.12 + Math.random() * 0.6, 0.04, 2500 + Math.random() * 2500, 0.12);
+    },
+    // Cóndor: dos chillidos agudos
+    condor() {
+      if (!ok()) return; const t0 = ctx.currentTime;
+      [0, 0.32].forEach((dt, k) => {
+        const t = t0 + dt, o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(k ? 2000 : 2300, t); o.frequency.exponentialRampToValueAtTime(k ? 1200 : 1400, t + 0.28);
+        lfo.frequency.value = 38; lg.gain.value = 70; lfo.connect(lg); lg.connect(o.frequency);
+        bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 3;
+        env(g, t, 0.02, 0.16, 0.3); o.connect(bp); bp.connect(g); g.connect(sfx);
+        [o, lfo].forEach((x) => { x.start(t); x.stop(t + 0.35); });
+      });
+      noise(t0, 0.4, 300, 1800, 0.14);
+    },
     whoosh() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.4, 300, 1800, 0.22); tone(880, t + 0.32, 0.12, 'triangle', 0.05, 1320); },
     bomb() { if (!ok()) return; const t = ctx.currentTime; for (let i = 0; i < 9; i++) tone(mf(PENTA[i % PENTA.length] + 12), t + i * 0.035, 0.35, 'sine', 0.07); },
-    water() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.5, 600, 2400, 0.16); [84, 88, 91].forEach((m, i) => tone(mf(m), t + i * 0.07, 0.25, 'sine', 0.04)); },
-    grow() { if (!ok()) return; const t = ctx.currentTime; tone(180, t, 0.25, 'triangle', 0.06, 260); noise(t, 0.2, 300, 900, 0.12); },
-    snip() { if (!ok()) return; const t = ctx.currentTime; tone(1800, t, 0.06, 'square', 0.04, 900); noise(t, 0.12, 5000, 1500, 0.2); pluck(88, t + 0.02, 0.35); },
     crack() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.16, 2400, 600, 0.35); tone(140, t, 0.12, 'square', 0.05, 70); },
     rumble() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.3, 120, 60, 0.4, 'lowpass'); tone(70, t, 0.3, 'sine', 0.2, 50); },
     coin() { if (!ok()) return; const t = ctx.currentTime; tone(mf(95), t, 0.09, 'square', 0.04); tone(mf(100), t + 0.08, 0.22, 'square', 0.04); },
-    win() { if (!ok()) return; const t = ctx.currentTime; [57, 64, 69, 72, 76, 81].forEach((m, i) => pluck(m, t + i * 0.09, 0.9)); tone(mf(93), t + 0.6, 1.2, 'sine', 0.06); },
+    win() { if (!ok()) return; const t = ctx.currentTime; [67, 71, 74, 79, 83, 86].forEach((m, i) => pluck(m, t + i * 0.09, 0.9)); tone(mf(91), t + 0.6, 1.2, 'sine', 0.06); },
     lose() { if (!ok()) return; const t = ctx.currentTime; tone(392, t, 0.7, 'triangle', 0.09, 180); },
     chime() { if (!ok()) return; const t = ctx.currentTime; [[88, 0], [91, 0.12], [96, 0.24]].forEach(([m, d]) => { tone(mf(m), t + d, 1.4, 'sine', 0.08); tone(mf(m) * 2.76, t + d, 0.5, 'sine', 0.02); }); },
     tick() { if (!ok()) return; tone(1100, ctx.currentTime, 0.04, 'sine', 0.04); },
-    // música: arpegio de guitarra en 6/8, estilo tonada cuyana
     music(mode) {
       musicMode = mode;
       if (!ctx) return;
       if (timer) clearInterval(timer);
       timer = null;
       if (!mode) return;
+      buildSong();
       nextT = ctx.currentTime + 0.15; step = 0;
       timer = setInterval(schedule, 40);
     },
@@ -1255,22 +1371,86 @@ const Sound = (() => {
     get muted() { return muted; },
     suspend(v) { if (ctx) (v ? ctx.suspend() : ctx.resume()); },
   };
-  const CH = {
-    Am: [45, 52, 57, 60, 64], Dm: [50, 57, 62, 65, 69], G: [43, 50, 55, 59, 62], C: [48, 55, 60, 64, 67],
-    F: [41, 48, 53, 57, 60], E: [40, 47, 52, 56, 59],
-  };
+
+  /* ---- Música: una banda distinta por acto, en tono mayor, y una melodía que cambia con cada lugar ---- */
+  const triad = (root, minor) => [root, root + (minor ? 3 : 4), root + 7];
   const SONGS = {
-    game: { prog: ['Am', 'Dm', 'G', 'C', 'F', 'Dm', 'E', 'Am'], eighth: 0.27, pat: [0, 2, 3, 4, 3, 2], vol: 0.55 },
-    letter: { prog: ['C', 'Am', 'F', 'G', 'C', 'Am', 'Dm', 'G'], eighth: 0.42, pat: [0, 2, 4, null, 3, null], vol: 0.45 },
+    // Acto 1, la ciudad: guitarra y quena, aire de cueca alegre (6/8)
+    1: { steps: 6, dur: 0.19, prog: [[55, 0], [60, 0], [62, 0], [55, 0], [52, 1], [60, 0], [62, 0], [55, 0]], lead: 'flute', scale: [0, 2, 4, 7, 9], mel: [1, 0, 1, 1, 0, 1] },
+    // Acto 2, la cordillera: el tren, con armónica (4/4)
+    2: { steps: 8, dur: 0.15, prog: [[50, 0], [55, 0], [57, 0], [50, 0], [59, 1], [55, 0], [57, 0], [50, 0]], lead: 'reed', scale: [0, 2, 4, 7, 9], mel: [1, 0, 1, 0, 1, 1, 0, 1] },
+    // Acto 3, el valle: marimba y bombo, chacarera (6/8)
+    3: { steps: 6, dur: 0.18, prog: [[53, 0], [58, 0], [60, 0], [53, 0], [50, 1], [58, 0], [60, 0], [53, 0]], lead: 'mallet', scale: [0, 2, 4, 7, 9], mel: [1, 1, 0, 1, 1, 0] },
+    // Acto 4, el origen: quena tranquila y esperanzada (4/4)
+    4: { steps: 8, dur: 0.2, prog: [[48, 0], [55, 0], [57, 1], [53, 0], [48, 0], [55, 0], [53, 0], [55, 0]], lead: 'flute', scale: [0, 2, 4, 7, 9], mel: [1, 0, 0, 1, 1, 0, 1, 0] },
+    letter: { steps: 6, dur: 0.42, prog: [[48, 0], [57, 1], [53, 0], [55, 0], [48, 0], [57, 1], [50, 1], [55, 0]], lead: null, mel: [] },
   };
+  let song = null, melody = [];
+  function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function buildSong() {
+    song = SONGS[musicMode === 'letter' ? 'letter' : theme] || SONGS[1];
+    melody = [];
+    if (!song.lead) return;
+    // dos frases (A y B) armadas con las notas de cada acorde; el lugar decide la semilla
+    const phrase = (seed) => {
+      const r = rng(seed), out = []; let last = 76;
+      song.prog.forEach(([root, minor]) => {
+        const tones = triad(root, minor).map((n) => n + 24).concat(triad(root, minor).map((n) => n + 36));
+        const cand = song.scale.map((sd) => 72 + ((root + sd) % 12)).concat(tones);
+        for (let i = 0; i < song.steps; i++) {
+          if (!song.mel[i] || r() < 0.18) { out.push(null); continue; }
+          const pool = (i === 0 ? tones : cand).filter((n) => n >= 69 && n <= 91).sort((a, b) => Math.abs(a - last) - Math.abs(b - last));
+          const n = pool[Math.min(pool.length - 1, Math.floor(r() * Math.min(4, pool.length)))];
+          out.push(n); last = n;
+        }
+      });
+      return out;
+    };
+    const A = phrase(seedBase * 7 + theme), B = phrase(seedBase * 13 + theme * 3 + 1);
+    melody = [...A, ...A, ...B, ...A];
+  }
   function schedule() {
-    if (!ctx || !musicMode) return;
-    const song = SONGS[musicMode];
-    while (nextT < ctx.currentTime + 0.2) {
-      const bar = Math.floor(step / 6) % song.prog.length, i = step % 6;
-      const idx = song.pat[i];
-      if (idx !== null && !muted) pluck(CH[song.prog[bar]][idx], nextT, i === 0 ? song.vol * 1.15 : song.vol * (0.75 + Math.random() * 0.15), mus);
-      nextT += song.eighth * (i === 0 ? 1.04 : 1);
+    if (!ctx || !musicMode || !song) return;
+    while (nextT < ctx.currentTime + 0.25) {
+      const S = song, perBar = S.steps, bar = Math.floor(step / perBar) % S.prog.length, i = step % perBar, t = nextT;
+      const [root, minor] = S.prog[bar], ch = triad(root, minor);
+      if (!muted) {
+        if (musicMode === 'letter') {
+          const pat = [0, 2, 1, null, 2, null], idx = pat[i];
+          if (idx !== null) pluck([ch[0] - 12, ch[0], ch[1], ch[2], ch[0] + 12][idx === 0 ? 0 : idx + 1], t, 0.4, mus);
+        } else if (theme === 2) {
+          // tren: chu-chu en corcheas, bajo en 1 y 3, campana al empezar el compás
+          hiss(t, 0.06, i % 2 ? 1400 : 800, i % 2 ? 0.07 : 0.13, mus, 'bandpass');
+          if (i === 0 || i === 4) bassN(ch[0] - 12, t, 0.3, 0.35, mus);
+          if (i === 2 || i === 6) [ch[1], ch[2]].forEach((n) => reed(n + 12, t, 0.12, 0.04, mus));
+          if (i === 0 && bar % 4 === 0) bell(84, t, 0.05, mus);
+        } else if (theme === 3) {
+          // chacarera: bombo en 1 y 4, marimba en los acordes
+          if (i === 0) drum(t, 110, 55, 0.35, 0.45, mus); if (i === 3) drum(t, 150, 90, 0.2, 0.25, mus);
+          if (i === 2 || i === 5) hiss(t, 0.04, 6000, 0.05, mus);
+          if (i === 1 || i === 4) ch.forEach((n, k) => mallet(n + 12, t + k * 0.01, 0.12, mus));
+          if (i === 0) bassN(ch[0] - 12, t, 0.5, 0.3, mus);
+        } else if (theme === 4) {
+          // origen: sonajero suave y arpegio de marimba
+          hiss(t, 0.05, 7000, i % 2 ? 0.03 : 0.05, mus);
+          if (i % 2 === 0) mallet([ch[0], ch[1], ch[2], ch[1]][(i / 2) % 4] + 12, t, 0.13, mus);
+          if (i === 0) { bassN(ch[0] - 12, t, 1.2, 0.28, mus); drum(t, 90, 50, 0.4, 0.25, mus); }
+        } else {
+          // ciudad: guitarra rasgueada en mayor, bombo legüero
+          const pat = [0, 1, 2, 3, 2, 1];
+          pluck([ch[0] - 12, ch[0], ch[1], ch[2]][pat[i]], t, i === 0 ? 0.55 : 0.38, mus);
+          if (i === 0) drum(t, 100, 55, 0.3, 0.35, mus);
+          if (i === 3) drum(t, 140, 80, 0.15, 0.2, mus);
+        }
+        const n = melody.length ? melody[step % melody.length] : null;
+        if (n) {
+          const d = S.dur * (S.lead === 'mallet' ? 1 : 1.8);
+          if (S.lead === 'flute') flute(n, t, d, 0.06, mus);
+          else if (S.lead === 'reed') reed(n, t, d, 0.05, mus);
+          else if (S.lead === 'mallet') mallet(n, t, 0.2, mus);
+        }
+      }
+      nextT += S.dur * (perBar === 6 && i === 0 ? 1.04 : 1);
       step++;
     }
   }
@@ -1286,11 +1466,24 @@ const P = {
   bernardo50: { n: 'Bernardo', img: 'img/bernardo50.jpg' },
   roberto_camionero: { n: 'Roberto', img: 'img/roberto_camionero.jpg' },
   roberto_viajero: { n: 'Roberto', img: 'img/roberto_viajero.jpg' },
-  nieto: { n: 'El nieto', img: 'img/nieto.jpg' },
-  nieta: { n: 'La nieta', img: 'img/nieta.jpg' },
-  octavio: { n: 'Octavio', img: 'img/octavio.jpg' },
-  rosa: { n: 'Doña Rosa', img: 'img/rosa.jpg' },
+  nieto: { n: 'El nieto', img: 'img/nieto_normal.jpg', moods: 1 },
+  nieta: { n: 'La nieta', img: 'img/nieta_normal.jpg', moods: 1 },
+  octavio: { n: 'Octavio', img: 'img/octavio_normal.jpg', moods: 1 },
+  rosa: { n: 'Doña Rosa', img: 'img/rosa_normal.jpg', moods: 1 },
 };
+// La cara cambia según lo que dicen: feliz, sorpresa, serio o normal.
+// Se puede forzar escribiendo el personaje así: S('nieta:serio', ...)
+const MOOD_SERIO = /perd[oó]n|deudas|cierra|no me gusta|robó|se llev[oó]|necesito|seca|no sab[ií]a|se nos escap|no es historiador|no empieces|muy gracioso|furios|encerr|humo|nunca me llev|no s[eé] qu[eé]|no hay oro|nadie puede|hay que|tenemos que|cuidado/i;
+const MOOD_SORPRESA = /¡r[aá]pido|^¡(eh|octavio|r[aá]pido|se |est[aá]n|ah[ií] va|ah[ií] est[aá] octavio|mi sombrero)|de golpe|\?$|\.\.\.\?|qu[eé] casualidad|¿vos|mir[aá] esa|no puede ser/i;
+const MOOD_FELIZ = /gracias|alegra|lindo|genial|encaj|encontr|ac[aá] estaba|ah[ií] est[aá]|primero|perfecto|firmo|firmamos|palabra|amigos|te lo regalo|reconocer[ií]a|mi abuelo (paraba|manejaba|dec[ií]a)|qu[eé] lugar/i;
+const lastMood = {};
+['nieto', 'nieta', 'octavio', 'rosa'].forEach((w) => ['feliz', 'sorpresa', 'serio', 'normal'].forEach((m) => { const im = new Image(); im.src = `img/${w}_${m}.jpg`; }));
+function moodOf(who, text) {
+  let m = MOOD_SERIO.test(text) ? 'serio' : MOOD_SORPRESA.test(text) ? 'sorpresa' : MOOD_FELIZ.test(text) ? 'feliz' : 'normal';
+  if (m === lastMood[who] && m === 'normal') m = 'feliz';
+  lastMood[who] = m;
+  return m;
+}
 const N = (text, img) => (img ? { text, img } : { text });
 const M = (text, img) => (img ? { text, img, memory: true } : { text, memory: true });
 const S = (who, text, memory, img) => (img ? { who, text, memory: !!memory, img } : { who, text, memory: !!memory });
@@ -1311,11 +1504,11 @@ const CHAPTERS = [
     moves: 19, types: 5, goals: [[3, 28], [4, 28]],
     obj: { icon: 'obj_mapa', name: 'El mapa completo', desc: 'Las dos mitades encajan: marcas por toda Mendoza.' },
     intro: [N('Ciudad de Mendoza, junto a las ruinas.'), S('nieta', '¿Vos también tenés medio mapa? El mío era de mi abuelo Roberto.'), S('nieto', 'Entonces nuestros abuelos se conocían...'), S('nieta', 'Si las dos mitades encajan, sabemos adónde ir.')],
-    before: { 1: [S('nieto', 'Pará. En el cuaderno hay un acertijo: "Cuando suenen las campanas de la tarde, buscá la puerta que ya no cierra".'), S('nieta', 'Faltan minutos para las siete. ¡Rápido, antes de que oscurezca!')] },
+    before: { 1: [S('nieto', 'Pará. En el cuaderno hay un acertijo: "Cuando suenen las campanas de la tarde, buscá la puerta que ya no cierra".'), S('nieta:sorpresa', 'Faltan minutos para las siete. ¡Rápido, antes de que oscurezca!')] },
     outro: [S('nieta', 'Encajan perfecto. Mirá todas estas marcas.', 0, 'img/esc_mapa.jpg'), S('nieto', 'Y en el centro dice: "La Llave del Agua".'), S('nieta', 'La primera marca está acá cerca: la fuente de la Plaza Independencia.')] },
   { act: 1, id: 'plaza', name: 'Plaza Independencia', sub: 'El centro de la ciudad', bg: 'img/bg_plaza.jpg', set: 'finca',
     obj: { icon: 'obj_moneda', name: 'La moneda agujereada', desc: 'Una moneda de 1974 con un agujero en el medio: la señal de Bernardo.' },
-    intro: [N('Plaza Independencia, en el centro de Mendoza.'), S('nieta', 'Según el mapa, la primera señal está en la fuente.'), S('nieto', 'El cuaderno dice: "Donde el agua salta en el medio de la ciudad, dejé mi moneda".'), S('octavio', 'Perdón que me meta. Me llamo Octavio, soy historiador. ¿Eso es un mapa de los años 70?'), S('nieta', 'Es de nuestros abuelos.'), S('octavio', 'Si necesitan una mano con la historia de Mendoza, cuenten conmigo.')],
+    intro: [N('Plaza Independencia, en el centro de Mendoza.'), S('nieta', 'Según el mapa, la primera señal está en la fuente.'), S('nieto', 'El cuaderno dice: "Donde el agua salta en el medio de la ciudad, dejé mi moneda".'), S('octavio:feliz', 'Perdón que me meta. Me llamo Octavio, soy historiador. ¿Eso es un mapa de los años 70?'), S('nieta', 'Es de nuestros abuelos.'), S('octavio', 'Si necesitan una mano con la historia de Mendoza, cuenten conmigo.')],
     outro: [S('nieto', '¡Acá está! En el fondo de la fuente.', 0, 'img/esc_fuente.jpg'), S('nieta', 'Una moneda de 1974, con un agujero en el medio. El cuaderno dice que tu abuelo marcaba así el camino.'), S('octavio', 'Qué pieza tan linda... ¿Me dejan sacarle una foto?'), S('nieto', 'Mejor no. Gracias igual.')] },
   { act: 1, id: 'parque', name: 'Parque y Lago', sub: 'Parque General San Martín', bg: 'img/bg_parque.jpg', set: 'finca',
     obj: { icon: 'obj_entrada', name: 'La entrada de la Vendimia', desc: 'Vendimia de 1972: el día que Bernardo y Roberto se conocieron.' },
@@ -1326,16 +1519,16 @@ const CHAPTERS = [
     moves: 23, types: 6, goals: [[1, 24], [5, 22]],
     obj: { icon: 'frag1', name: 'Primer fragmento', desc: 'La cabeza de la Llave, con su piedra turquesa en forma de gota.', stolen: true },
     intro: [N('Cerro de la Gloria, arriba del parque.'), S('nieto', '"El cerro mira a la cordillera. Contá los caballos." Es acá.'), S('nieta', 'Vamos rápido. No quiero que Octavio nos alcance.')],
-    outro: [S('nieta', '¡Acá estaba! Escondida al pie del monumento.', 0, 'img/esc_cerro.jpg'), S('nieto', 'El primer pedazo de la Llave.'), S('octavio', '¡Qué casualidad! Salí a caminar por el cerro y miren con quién me encuentro.'), S('nieta', 'Llegaste cinco minutos tarde, Octavio.'), S('nieto', 'El cuaderno dice que el abuelo cosechó para una bodega de Chacras de Coria. Ahí vamos.')] },
+    outro: [S('nieta', '¡Acá estaba! Escondida al pie del monumento.', 0, 'img/esc_cerro.jpg'), S('nieto', 'El primer pedazo de la Llave.'), S('octavio', '¡Qué casualidad! Salí a caminar por el cerro y miren con quién me encuentro.'), S('nieta:serio', 'Llegaste cinco minutos tarde, Octavio.'), S('nieto', 'El cuaderno dice que el abuelo cosechó para una bodega de Chacras de Coria. Ahí vamos.')] },
   { act: 1, id: 'bodega', name: 'Bodega en Chacras', sub: 'Chacras de Coria, Luján', bg: 'img/bg_bodega.jpg', set: 'finca',
     obj: { icon: 'obj_corcho', name: 'El corcho de la barrica 1974', desc: 'Estaba en el escritorio de la oficina vieja. Tiene grabada una gota: la marca de la Llave.' },
     intro: [N('Chacras de Coria. Una bodega vieja, de ladrillo.'), S('nieto', 'El cuaderno dice que el abuelo cosechó para esta bodega.'), S('nieta', 'La oficina vieja está abierta. Hay fotos colgadas en la pared.')],
-    outro: [S('nieta', 'Mirá esa foto. Es tu abuelo, joven. ¿Y el señor de traje?', 0, 'img/esc_bodega.jpg'), S('nieto', 'Abajo dice: "Don Ignacio Arrieta, 1974".'), S('nieta', 'Y la foto de al lado es nueva... Es Octavio. Octavio Arrieta.'), M('Mendoza, 1974. En el patio de la bodega.', 'img/esc_sobre.jpg'), M('—Es más plata de la que vas a ganar en toda tu vida, Bernardo —le dijo don Ignacio—. Dame la Llave.'), S('bernardo_obrero', 'Gracias, don Ignacio. Pero hay cosas que no se venden.', 1), S('nieto', 'El abuelo dijo que no.'), S('nieta', 'Octavio no es historiador. Es el nieto del hombre que quiso comprar la Llave.'), S('nieto', 'Y ahora la busca él.')] },
+    outro: [S('nieta', 'Mirá esa foto. Es tu abuelo, joven. ¿Y el señor de traje?', 0, 'img/esc_bodega.jpg'), S('nieto', 'Abajo dice: "Don Ignacio Arrieta, 1974".'), S('nieta:sorpresa', 'Y la foto de al lado es nueva... Es Octavio. Octavio Arrieta.'), M('Mendoza, 1974. En el patio de la bodega.', 'img/esc_sobre.jpg'), M('—Es más plata de la que vas a ganar en toda tu vida, Bernardo —le dijo don Ignacio—. Dame la Llave.'), S('bernardo_obrero', 'Gracias, don Ignacio. Pero hay cosas que no se venden.', 1), S('nieto', 'El abuelo dijo que no.'), S('nieta', 'Octavio no es historiador. Es el nieto del hombre que quiso comprar la Llave.'), S('nieto:serio', 'Y ahora la busca él.')] },
   { act: 2, id: 'villavicencio', name: 'Villavicencio', sub: 'El hotel y los caracoles', bg: 'img/bg_villavicencio.jpg', set: 'tren',
     obj: { icon: 'frag2', name: 'Segundo fragmento', desc: 'Estaba debajo del puentecito del jardín.', stolen: true },
-    intro: [N('Villavicencio, el hotel viejo al pie de los caracoles.'), S('nieta', 'Hay pisadas frescas. Y mirá allá, entre los árboles...', 0, 'img/esc_coleccionista.jpg'), S('nieto', 'Es Octavio, con binoculares. Nos viene siguiendo.')],
+    intro: [N('Villavicencio, el hotel viejo al pie de los caracoles.'), S('nieta:sorpresa', 'Hay pisadas frescas. Y mirá allá, entre los árboles...', 0, 'img/esc_coleccionista.jpg'), S('nieto:serio', 'Es Octavio, con binoculares. Nos viene siguiendo.')],
     before: { 1: [S('nieta', '¡Octavio va derecho al puentecito del jardín!'), S('nieto', 'El cuaderno dice que el fragmento está ahí abajo. ¡Corramos!')] },
-    outro: [S('nieto', 'Lo encontramos primero. Por poco.'), S('octavio', 'Bien jugado. Pero la cordillera es larga.'), S('nieta', 'El cuaderno dice que la próxima pista está en las termas de Cacheuta.')] },
+    outro: [S('nieto', 'Lo encontramos primero. Por poco.'), S('octavio:feliz', 'Bien jugado. Pero la cordillera es larga.'), S('nieta', 'El cuaderno dice que la próxima pista está en las termas de Cacheuta.')] },
   { act: 2, id: 'cacheuta', name: 'Termas de Cacheuta', sub: 'Palabra de camionero', bg: 'img/bg_cacheuta.jpg', set: 'tren',
     obj: { icon: 'obj_termo', name: 'El termo de Roberto', desc: 'Azul y blanco, abollado de tantos viajes. Adentro había una pista.' },
     intro: [N('Termas de Cacheuta, junto al río Mendoza.'), S('nieta', 'Mi abuelo paraba acá con el camión. Decía que el agua caliente le arreglaba la espalda.'), M('Años 70. Al lado de las ruinas del viejo hotel de las termas, que se llevó el aluvión de 1934.', 'img/esc_termas.jpg'), S('bernardo_obrero', 'Roberto, te tengo que contar algo. Encontré una cosa limpiando la acequia de la finca.', 1), S('roberto_camionero', '¿Qué cosa?', 1), S('bernardo_obrero', 'Una llave vieja, de piedra. Un señor de traje me la quiere comprar. Y no se la voy a vender.', 1), S('roberto_camionero', 'Entonces hay que esconderla bien. Contá conmigo. Palabra de camionero.', 1)],
@@ -1358,12 +1551,12 @@ const CHAPTERS = [
   { act: 2, id: 'aconcagua', name: 'Laguna de Horcones', sub: 'Al pie del Aconcagua', bg: 'img/bg_aconcagua.jpg', set: 'tren',
     obj: { icon: 'obj_brujula', name: 'La brújula de Roberto', desc: 'Tiene un camioncito grabado en la tapa. La aguja apunta al Cristo Redentor.' },
     intro: [N('Parque Provincial Aconcagua, Laguna de Horcones.'), S('nieto', '"La laguna mira al gigante." El gigante es el Aconcagua.'), S('nieta', 'Mi abuelo decía que era la montaña más alta de América. Siempre quiso verla de cerca.')],
-    before: { 1: [S('nieto', 'Se viene el viento blanco.'), S('nieta', '¡Rápido, antes de que no se vea nada!')] },
+    before: { 1: [S('nieto:serio', 'Se viene el viento blanco.'), S('nieta', '¡Rápido, antes de que no se vea nada!')] },
     outro: [S('nieta', '¡Encontré algo entre las piedras! La brújula de mi abuelo.', 0, 'img/esc_brujula.jpg'), S('nieto', 'No apunta al norte. Apunta a la frontera.'), S('nieta', 'Al Cristo Redentor.')] },
   { act: 2, id: 'cristo', name: 'Cristo Redentor', sub: 'La frontera', bg: 'img/bg_cristo.jpg', set: 'tren',
     obj: { icon: 'frag4', name: 'Cuarto fragmento', desc: 'Lo que Roberto subió hasta la cordillera.' },
     intro: [S('nieta', 'La brújula marca justo acá: los pies del Cristo, mirando a los dos países.'), S('nieto', 'Qué frío hace. Imaginate subir en esa época.')],
-    outro: [S('nieta', 'Mi abuelo subió hasta acá solo para cuidar el secreto del tuyo.', 0, 'img/esc_cristo.jpg'), S('nieto', 'Y el mío nunca se lo olvidó.'), S('octavio', 'Felicitaciones. Ahora ustedes tienen uno y yo tengo tres.', 0, 'img/esc_tres_uno.jpg'), S('nieta', 'Y nosotros tenemos el cuaderno. Sin él no vas a encontrar los otros dos.'), S('octavio', '...Entonces vamos a tener que viajar juntos.')] },
+    outro: [S('nieta', 'Mi abuelo subió hasta acá solo para cuidar el secreto del tuyo.', 0, 'img/esc_cristo.jpg'), S('nieto', 'Y el mío nunca se lo olvidó.'), S('octavio:feliz', 'Felicitaciones. Ahora ustedes tienen uno y yo tengo tres.', 0, 'img/esc_tres_uno.jpg'), S('nieta', 'Y nosotros tenemos el cuaderno. Sin él no vas a encontrar los otros dos.'), S('octavio', '...Entonces vamos a tener que viajar juntos.')] },
   { act: 3, id: 'manzano', name: 'Manzano Histórico', sub: 'Tunuyán', bg: 'img/bg_manzano.jpg', set: 'finca',
     obj: { icon: 'obj_foto_hijos', name: 'La foto de los tres hijos', desc: 'El papá del nieto y sus dos hermanos, chiquitos, en el Manzano Histórico.' },
     intro: [N('Manzano Histórico, en el Valle de Uco.'), S('nieto', 'Viajar con Octavio en la misma camioneta... Quién lo hubiera dicho.'), S('octavio', 'Prometo no encerrar a nadie.'), S('nieta', 'Muy gracioso.'), S('nieto', 'El cuaderno dice que el abuelo traía a sus hijos acá.'), M('Años 70. Un domingo en el Manzano.', 'img/esc_vianda.jpg'), S('bernardo_obrero', 'Acá descansó San Martín cuando volvió de Chile, en 1823. Imagínense: después de cruzar toda la cordillera.', 1), S('bernardo_obrero', 'Coman, que la vianda no se come sola.', 1)],
@@ -1379,7 +1572,7 @@ const CHAPTERS = [
     outro: [S('nieto', 'Cada racimo de acá era un plato de comida en su mesa.'), S('nieta', 'Y mirá: escondió el fragmento entre sus viñas.'), S('octavio', 'Cinco pedazos... y tres son míos.')] },
   { act: 3, id: 'atuel', name: 'Cañón del Atuel', sub: 'San Rafael', bg: 'img/bg_atuel.jpg', set: 'finca',
     obj: { icon: 'frag6', name: 'Sexto fragmento', desc: 'Octavio intentó escaparse con él río abajo.' },
-    intro: [N('Cañón del Atuel, San Rafael.'), S('nieta', 'El sexto fragmento está en el cañón, cerca del río.'), S('nieto', 'Octavio se levantó temprano... y no está.')],
+    intro: [N('Cañón del Atuel, San Rafael.'), S('nieta', 'El sexto fragmento está en el cañón, cerca del río.'), S('nieto:sorpresa', 'Octavio se levantó temprano... y no está.')],
     before: { 1: [S('nieta', '¡Octavio encontró el fragmento y se va río abajo en un gomón!', 0, 'img/esc_gomon.jpg'), S('nieto', '¡Al otro gomón, rápido!')] },
     outro: [S('nieto', 'Lo alcanzamos en el remanso.'), S('octavio', 'Está bien, está bien. Tomá. No sé qué me pasó.'), S('nieta', 'El sexto fragmento queda con nosotros.')] },
   { act: 3, id: 'reyunos', name: 'Los Reyunos', sub: 'El dique', bg: 'img/bg_reyunos.jpg', set: 'finca',
@@ -1389,32 +1582,32 @@ const CHAPTERS = [
   { act: 4, id: 'caverna', name: 'Caverna de las Brujas', sub: 'Malargüe', bg: 'img/bg_caverna.jpg', set: 'sur',
     obj: { icon: 'obj_farol', name: 'El farol de minero', desc: 'Octavio lo usó para alumbrar la marca de los abuelos.' },
     intro: [N('Caverna de las Brujas, Malargüe.'), S('nieto', 'La pista dice: "Donde el agua se hace piedra".'), S('nieta', 'Las estalactitas: agua que gota a gota se volvió piedra.')],
-    before: { 3: [S('nieto', 'Se está apagando la linterna...'), S('octavio', 'Tengo un farol. Sigan, yo alumbro.')] },
+    before: { 3: [S('nieto:serio', 'Se está apagando la linterna...'), S('octavio', 'Tengo un farol. Sigan, yo alumbro.')] },
     outro: [S('nieta', 'Miren la pared. Una B y una R, rayadas con un clavo.', 0, 'img/esc_marca.jpg'), S('nieto', 'Bernardo y Roberto. Estuvieron acá.'), S('octavio', 'Quedate el farol. Te lo regalo.')] },
   { act: 4, id: 'pincheira', name: 'Castillos de Pincheira', sub: 'Malargüe', bg: 'img/bg_pincheira.jpg', set: 'sur',
     obj: { icon: 'obj_herradura', name: 'La herradura vieja', desc: 'Estaba junto al río, al pie de los castillos de piedra.' },
     intro: [N('Castillos de Pincheira, Malargüe.'), S('octavio', 'Acá se escondían los bandidos Pincheira, en el siglo XIX. Dicen que dejaron oro enterrado.'), S('nieta', 'Octavio, no empieces.')],
-    outro: [S('octavio', 'Imaginen si el oro está acá y la Llave abre el escondite...', 0, 'img/esc_pincheira.jpg'), S('nieto', 'Mirá lo que escribió el abuelo en el cuaderno: "No hay oro, hay agua".'), S('octavio', '...¿Agua?'), S('nieta', 'Al lado del río encontramos una herradura vieja.')] },
+    outro: [S('octavio:feliz', 'Imaginen si el oro está acá y la Llave abre el escondite...', 0, 'img/esc_pincheira.jpg'), S('nieto', 'Mirá lo que escribió el abuelo en el cuaderno: "No hay oro, hay agua".'), S('octavio', '...¿Agua?'), S('nieta', 'Al lado del río encontramos una herradura vieja.')] },
   { act: 4, id: 'llancanelo', name: 'Laguna de Llancanelo', sub: 'Entre flamencos', bg: 'img/bg_llancanelo.jpg', set: 'sur',
     obj: { icon: 'obj_pluma', name: 'La pluma de flamenco', desc: 'Rosada, encontrada en la orilla al atardecer.' },
     intro: [N('Laguna de Llancanelo, Malargüe.'), S('nieta', 'Qué lugar tan tranquilo.'), S('nieto', 'Mañana llegamos a la Payunia. Disfrutemos un rato.')],
     outro: [N('Atardece en la laguna.', 'img/esc_flamencos.jpg'), S('nieta', '¿Sabés qué? Me alegra que nuestros abuelos se hayan conocido.'), S('nieto', 'A mí también. Si no, no te hubiera conocido a vos.'), N('A lo lejos, Octavio habla por teléfono con su familia. Por primera vez en todo el viaje, sonríe.'), S('nieta', 'Mirá, una pluma de flamenco en la orilla.')] },
   { act: 4, id: 'payunia', name: 'La Payunia', sub: 'Donde el fuego se hizo piedra', bg: 'img/bg_payunia.jpg', set: 'sur', letter: true,
     obj: { icon: 'llave', name: 'La Llave del Agua', desc: 'Los seis fragmentos encajan. La Llave está entera otra vez.' },
-    intro: [N('Malargüe. Atardece en la Payunia.'), S('nieta', 'La última marca del mapa. Acá no hay más que volcanes.'), S('nieto', 'El cuaderno dice: "Donde el fuego se hizo piedra, la Llave abre lo que guardé".'), S('octavio', 'Cumplo el acuerdo. Acá están mis tres pedazos.')],
+    intro: [N('Malargüe. Atardece en la Payunia.'), S('nieta', 'La última marca del mapa. Acá no hay más que volcanes.'), S('nieto', 'El cuaderno dice: "Donde el fuego se hizo piedra, la Llave abre lo que guardé".'), S('octavio:feliz', 'Cumplo el acuerdo. Acá están mis tres pedazos.')],
     before: { 1: [N('Seis pedazos, uno al lado del otro.'), S('nieta', 'Hay que armar la Llave antes de que se haga de noche.')] },
-    outro: [N('Las seis piezas encajan una por una. La Llave abre una cajita de lata escondida entre las piedras.', 'img/esc_llave.jpg'), S('nieta', 'No hay oro...'), S('nieto', 'Hay un sobre. Tiene mi nombre. Y dice: "Para tu cumpleaños número 10".')],
+    outro: [N('Las seis piezas encajan una por una. La Llave abre una cajita de lata escondida entre las piedras.', 'img/esc_llave.jpg'), S('nieta:sorpresa', 'No hay oro...'), S('nieto', 'Hay un sobre. Tiene mi nombre. Y dice: "Para tu cumpleaños número 10".')],
     after: [S('nieto', '"Llevala adonde nació el agua"...'), S('nieta', '¿Y dónde nació el agua?'), S('octavio', 'Los primeros que regaron Mendoza fueron los huarpes. En las lagunas de Guanacache.'), S('nieto', 'Entonces vamos a Guanacache.')] },
   { act: 4, id: 'guanacache', name: 'Lagunas de Guanacache', sub: 'Lavalle', bg: 'img/bg_guanacache.jpg', set: 'sur',
     obj: { icon: 'obj_balsa', name: 'La balsa de totora', desc: 'Regalo de doña Rosa: como las balsas con que los laguneros navegaban Guanacache.' },
-    intro: [N('Lagunas de Guanacache, en Lavalle, al lado de la capilla del Rosario.'), S('nieta', 'Las lagunas están casi secas.'), S('rosa', 'Hace más de cien años que el agua de los ríos se usa antes de llegar acá. Solo vuelve los años de mucho deshielo.'), S('rosa', 'Soy Rosa. Hago artesanías de totora. ¿Qué los trae por acá?')],
-    before: { 2: [S('rosa', 'A ver esa llave... Estos dibujos son los mismos que marcan las acequias más viejas.', 0, 'img/esc_rosa.jpg'), S('rosa', 'Mi abuela contaba que los laguneros marcaban así las compuertas. Esta llave abría el paso del agua.'), S('octavio', '...Entonces no es un tesoro para vender. Es de acá.')] },
-    outro: [N('Ese año hubo mucho deshielo. El agua bajó por la acequia vieja y las lagunas se llenaron otra vez.', 'img/esc_lagunas.jpg'), S('octavio', 'No la voy a vender. La bodega... ya voy a ver cómo la salvo. Pero no así.'), S('rosa', 'Tomen. Una balsa de totora, como las que usaban los laguneros.'), S('nieta', 'Gracias, doña Rosa.')] },
+    intro: [N('Lagunas de Guanacache, en Lavalle, al lado de la capilla del Rosario.'), S('nieta', 'Las lagunas están casi secas.'), S('rosa', 'Hace más de cien años que el agua de los ríos se usa antes de llegar acá. Solo vuelve los años de mucho deshielo.'), S('rosa:feliz', 'Soy Rosa. Hago artesanías de totora. ¿Qué los trae por acá?')],
+    before: { 2: [S('rosa', 'A ver esa llave... Estos dibujos son los mismos que marcan las acequias más viejas.', 0, 'img/esc_rosa.jpg'), S('rosa', 'Mi abuela contaba que los laguneros marcaban así las compuertas. Esta llave abría el paso del agua.'), S('octavio:sorpresa', '...Entonces no es un tesoro para vender. Es de acá.')] },
+    outro: [N('Ese año hubo mucho deshielo. El agua bajó por la acequia vieja y las lagunas se llenaron otra vez.', 'img/esc_lagunas.jpg'), S('octavio:serio', 'No la voy a vender. La bodega... ya voy a ver cómo la salvo. Pero no así.'), S('rosa', 'Tomen. Una balsa de totora, como las que usaban los laguneros.'), S('nieta', 'Gracias, doña Rosa.')] },
   { act: 4, id: 'epilogo', name: 'El olivo, otra vez', sub: 'Maipú', bg: 'img/bg_finca.jpg', set: 'finca', final: true,
     obj: { icon: 'obj_foto_abuelos', name: 'La foto de los dos abuelos', desc: 'Bernardo y Roberto, abrazados en la viña. Ahora está en el museo, al lado de la Llave.' },
     intro: [N('Maipú. Vuelven al olivo donde empezó todo.'), S('nieto', 'Acá jugaba mi viejo. Y acá el abuelo enterró la caja.'), S('nieta', '¿Qué hacemos con la Llave?'), S('nieto', 'Que la vea todo el que venga. En un museo, al lado de la foto de los dos.')],
     before: { 2: [S('nieto', 'La carta vuelve a la caja. Y la caja, al pie del olivo.')], 3: [S('nieta', 'La acequia del olivo está seca.'), S('nieto', 'Abramos el paso. Que vuelva el agua.')] },
-    outro: [N('El agua vuelve a correr al pie del olivo.', 'img/esc_agua_olivo.jpg'), S('nieto', 'Tuvo la Llave en la mano y eligió no venderla.'), S('nieta', 'Igual que cuando dejó Córdoba. Eligió a los suyos.'), S('nieto', 'Tu abuelo y el mío, cuidando el mismo secreto durante cincuenta años.'), S('nieta', 'Para que un día nos encontráramos nosotros.'), N('La Llave del Agua quedó en un museo de Mendoza, al lado de la foto de Bernardo y Roberto.', 'img/esc_museo.jpg'), N('Octavio reabrió la bodega de su familia como parada de la ruta del mapa. Y la carta volvió a la caja, al pie del olivo.')] }
+    outro: [N('El agua vuelve a correr al pie del olivo.', 'img/esc_agua_olivo.jpg'), S('nieto:feliz', 'Tuvo la Llave en la mano y eligió no venderla.'), S('nieta:feliz', 'Igual que cuando dejó Córdoba. Eligió a los suyos.'), S('nieto', 'Tu abuelo y el mío, cuidando el mismo secreto durante cincuenta años.'), S('nieta', 'Para que un día nos encontráramos nosotros.'), N('La Llave del Agua quedó en un museo de Mendoza, al lado de la foto de Bernardo y Roberto.', 'img/esc_museo.jpg'), N('Octavio reabrió la bodega de su familia como parada de la ruta del mapa. Y la carta volvió a la caja, al pie del olivo.')] }
 ];
 CHAPTERS.forEach((c, i) => { c.num = i === 0 ? 'Prólogo' : c.final ? 'Epílogo' : `Capítulo ${i}`; });
 const ACTS = {
@@ -1573,6 +1766,7 @@ const NODES = {
 const BAG_SVG = `<svg viewBox="0 0 64 64"><path d="M20 18c0-8 5-12 12-12s12 4 12 12" fill="none" stroke="#6b3f22" stroke-width="5"/><rect x="10" y="16" width="44" height="42" rx="12" fill="#a8683a"/><rect x="10" y="16" width="44" height="16" rx="10" fill="#8a5230"/><rect x="18" y="36" width="28" height="16" rx="5" fill="#8a5230"/><rect x="29" y="28" width="6" height="10" rx="2" fill="#e6b84a"/></svg>`;
 function renderMap() {
   NIGHT = false; $('game').classList.remove('night');
+  { const f = frontier(); Sound.theme((CHAPTERS[Math.min(f, CHAPTERS.length - 1)] || {}).act || 1, 0); }
   const got = CHAPTERS.filter((c) => save.got[c.id]);
   $('bag-ico').innerHTML = '<img src="img/ui_mochila.png" alt="">';
   $('bag-count').textContent = got.length;
@@ -1699,10 +1893,16 @@ function runDialog(lines) {
     const sheet = $('sheet');
     const render = () => {
       const L = lines[i];
-      const p = L.who ? P[L.who] : null;
+      const [whoId, forced] = (L.who || '').split(':');
+      const p = whoId ? P[whoId] : null;
       sheet.classList.toggle('narr', !p);
       $('d-portrait').hidden = !p;
-      if (p) { $('d-portrait').style.backgroundImage = `url(${p.img})`; $('d-name').textContent = p.n; }
+      if (p) {
+        const img = p.moods ? `img/${whoId}_${forced || moodOf(whoId, L.text)}.jpg` : p.img;
+        const por = $('d-portrait');
+        if (por.dataset.img !== img) { por.dataset.img = img; por.style.backgroundImage = `url(${img})`; por.classList.remove('pop'); void por.offsetWidth; por.classList.add('pop'); }
+        $('d-name').textContent = p.n;
+      }
       $('d-name').parentElement.hidden = !p;
       $('d-chip').hidden = !L.memory;
       $('d-text').textContent = L.text;
@@ -1756,6 +1956,7 @@ function preLevel(ch, L) {
   const sp = lv.special ? SPECIAL[lv.special] : null;
   const html = `<span class="kicker">Nivel ${levelNumber(ch, L)} · ${L + 1} de ${nLv(ch)} en este lugar</span><h3></h3>
     ${sp ? `<div class="sp-tag"><img src="${sp.img}" alt="">${sp.tag}</div><p class="pre-text">${sp.desc}</p>` : ''}
+    ${lv.screens ? `<div class="sp-tag long">Nivel largo · ${lv.screens.length} pantallas ${lv.dir === 'h' ? 'hacia el costado' : 'hacia abajo'}</div>` : ''}
     <div class="pre-goals">${goalChips(ch, lv)}</div>
     <p class="pre-text">${goalText(ch, lv)}</p>
     <p class="pre-label">Ayudas para empezar</p>
@@ -1900,6 +2101,7 @@ async function playPlace(i) {
 }
 async function playLevel(i, L, replay) {
   NIGHT = false;
+  { const ch0 = CHAPTERS[i]; Sound.theme(ch0.act || 1, i + 1); }
   const ch = CHAPTERS[i];
   current = i;
   setBg(ch.bg, ch.memory ? 0.9 : 0.15);
@@ -2026,6 +2228,7 @@ async function startLevel(ch, L, pre, replay) {
     },
     onCombo: (n) => { if (n === 2) toast('¡Bien!'); else if (n === 3) toast('¡Bárbaro!'); else if (n >= 4) toast(`¡Qué ${G('genio', 'genia', 'crack')}!`); },
     onTool: () => updateToolbar(),
+    onSection: (i, n) => { $('g-title').textContent = `${sp ? '★ ' : ''}Nivel ${levelNumber(ch, L)}${n > 1 ? ` · ${i + 1}/${n}` : ''}`; },
     onCoins: (n) => { addCoins(n * 3); Sound.coin(); toast(`+${n * 3} monedas del barril`); },
     onToolUsed: (k) => { save.inv[k] = Math.max(0, save.inv[k] - 1); persist(); updateToolbar(); },
     onEnd: (won, info) => endLevel(ch, L, won, info, replay),
@@ -2079,7 +2282,7 @@ async function endLevel(ch, L, won, info, replay) {
   Sound.lose();
   const sc = await boardReady;
   const remaining = sc.state.goals.map((g) => Math.max(0, g.n - g.got));
-  const v = await modal(`<span class="kicker">Sin jugadas</span><h3>Casi lo tenías</h3><p>Te falta:</p><div class="pre-goals">${goalChips(ch, lv, remaining)}</div><div class="icon small"><img src="img/ui_jugadas.png" alt=""></div>`,
+  const v = await modal(`<span class="kicker">Sin jugadas</span><h3>Casi lo tenías</h3><p>Te falta:</p><div class="pre-goals">${goalChips(ch, lv, remaining)}</div><div class="icon small"><img src="img/ui_jugadas.png" alt=""></div><div class="wallet"><img src="img/ui_moneda.png" alt=""><span>Tenés <b>${save.coins}</b> monedas</span></div>`,
     [['+5 jugadas', 'more'], ['Rendirme', 'quit', 1]],
     (card) => {
       const b = card.querySelector('[data-val="more"]');
@@ -2244,11 +2447,9 @@ class BoardScene extends Phaser.Scene {
   constructor() { super('board'); }
   create() {
     for (const s of ['h', 'v', 'c', 'o', 'b']) this.makeTex(null, -1, s);
-    const gfx = this.add.graphics();
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      gfx.fillStyle(0xfff3dc, (r + c) % 2 ? 0.10 : 0.17);
-      gfx.fillRoundedRect(c * CELL + 4, r * CELL + 4, CELL - 8, CELL - 8, 14);
-    }
+    this.bgG = this.add.graphics();
+    this.ox = 0; this.oy = 0; this.sections = null; this.sec = 0;
+    this.textures.createCanvas('void', 4, 4).refresh();
     this.floorG = this.add.graphics().setDepth(1);
     this.sel = this.add.graphics().setDepth(5);
     this.fx = this.add.graphics().setDepth(6);
@@ -2279,6 +2480,7 @@ class BoardScene extends Phaser.Scene {
   key(p) {
     if (p.t === ROCK && p.k === 'barril') { const k = `barril_${p.hp}`; if (!this.textures.exists(k)) { const tx = this.textures.createCanvas(k, 128, 128); drawBarrel(tx.getContext(), p.hp); tx.refresh(); } return k; }
     if (p.t === WEED) return 'maleza_t';
+    if (p.t === VOID) return 'void';
     if (p.t === ROCK) { const k = `rock_${this.lv.rskin}_${p.hp}`; if (!this.textures.exists(k)) { const tx = this.textures.createCanvas(k, 128, 128); drawRock(tx.getContext(), this.lv.rskin, p.hp); tx.refresh(); } return k; }
     if (p.t === ITEM) return 'item';
     if (p.w) {
@@ -2292,7 +2494,7 @@ class BoardScene extends Phaser.Scene {
   drawFloor() {
     const g = this.floorG; g.clear();
     (this.floorS || []).forEach((s) => s.destroy());
-    this.floorS = [];
+    if (this.floorS) this.floorS.length = 0; else this.floorS = [];
     if (!this.floor) return;
     const skin = FLOOR_SKIN[this.lv.fskin] ? this.lv.fskin : 'tierra', key = `suelo_${skin}`, f = FLOOR_SKIN[skin];
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
@@ -2310,7 +2512,7 @@ class BoardScene extends Phaser.Scene {
         if (n > 1) s.setTint(0xb8b0a4);
         this.floorS.push(s);
       } else {
-        g.fillStyle(parseInt(f.color.slice(1), 16), 1); g.fillRoundedRect(c * CELL + 3, r * CELL + 3, CELL - 6, CELL - 6, 14);
+        g.fillStyle(parseInt(f.color.slice(1), 16), 1); g.fillRoundedRect(this.ox + c * CELL + 3, this.oy + r * CELL + 3, CELL - 6, CELL - 6, 14);
       }
     }
   }
@@ -2354,7 +2556,7 @@ class BoardScene extends Phaser.Scene {
     drawPiece(tex.getContext(), set, t, s);
     tex.refresh();
   }
-  xy(r, c) { return [c * CELL + CELL / 2, r * CELL + CELL / 2]; }
+  xy(r, c) { return [this.ox + c * CELL + CELL / 2, this.oy + r * CELL + CELL / 2]; }
   makeSprite(r, c, p, rowOverride) {
     const [x, y] = this.xy(rowOverride === undefined ? r : rowOverride, c);
     const s = this.add.image(x, y, this.key(p)).setDisplaySize(CELL * 0.9, CELL * 0.9).setDepth(2);
@@ -2381,13 +2583,13 @@ class BoardScene extends Phaser.Scene {
   // Objetivos que dependen del tablero: la maleza que queda y el agua que llegó abajo
   syncState() {
     for (const g of this.state.goals) {
-      if (g.t === 'weed') { const left = this.g.flat().filter((p) => p && p.t === WEED).length; if (g.n0 === undefined) { g.n0 = 1; g.n = left; } g.got = g.n - left; }
-      if (g.t === 'water' && this.lv.water) g.got = flowWater(this.floor, this.lv.water.src).bottom;
+      if (g.t === 'weed') { const left = (this.sections || [{ g: this.g }]).reduce((a, S) => a + S.g.flat().filter((p) => p && p.t === WEED).length, 0); if (g.n0 === undefined) { g.n0 = 1; g.n = left; } g.got = g.n - left; }
+      if (g.t === 'water' && this.lv.water) g.got = flowWater(this.floor, this.lv.water.src, this.g).bottom;
     }
   }
   drawFog() {
     Object.values(this.fogS).forEach((s) => s.destroy());
-    this.fogS = {};
+    Object.keys(this.fogS).forEach((k) => delete this.fogS[k]);
     if (!this.fog || !this.textures.exists('niebla')) return;
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       if (!this.fog[r][c]) continue;
@@ -2410,8 +2612,9 @@ class BoardScene extends Phaser.Scene {
   // El agua avanza: las casillas nuevas se llenan con un chapoteo
   updateWater() {
     if (!this.lv.water) return;
-    const prev = this.wet, now = flowWater(this.floor, this.lv.water.src).wet;
+    const prev = this.wet, now = flowWater(this.floor, this.lv.water.src, this.g).wet;
     this.wet = now;
+    if (this.sections) this.sections[this.sec].wet = now;
     const fresh = [];
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (now[r][c] && !(prev && prev[r][c])) fresh.push([r, c]);
     this.drawFloor();
@@ -2424,42 +2627,109 @@ class BoardScene extends Phaser.Scene {
       this.time.delayedCall(d, () => this.particles(x, y, { n: 6, colors: ['#7fe3ff', '#ffffff', '#3cb6e0'], speed: 200, lift: 140, size: 0.4, gravity: 800, life: 500 }));
     });
   }
+  // Un nivel puede tener varias pantallas (hacia abajo o al costado). Cada pantalla es un tablero propio;
+  // se juega una por vez y, al limpiar sus obstáculos, la cámara pasa a la siguiente.
+  useSection(i) {
+    const S = this.sections[i];
+    this.sec = i;
+    this.g = S.g; this.floor = S.floor; this.fog = S.fog; this.wet = S.wet;
+    this.sprites = S.sprites; this.floorS = S.floorS; this.fogS = S.fogS;
+    this.ox = S.ox; this.oy = S.oy; this.lv = S.spec;
+  }
+  drawBoardBg() {
+    const g = this.bgG; g.clear();
+    for (const S of this.sections) for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      if (isVoid(S.g, r, c)) continue;
+      g.fillStyle(0xfff3dc, (r + c) % 2 ? 0.10 : 0.17);
+      g.fillRoundedRect(S.ox + c * CELL + 4, S.oy + r * CELL + 4, CELL - 8, CELL - 8, 14);
+    }
+  }
+  sectionLeft(S) {
+    let n = 0;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const p = S.g[r][c];
+      if (S.floor[r][c] > 0) n++;
+      if (S.fog[r][c] > 0) n++;
+      if (p && (p.t === ROCK || p.t === WEED || p.t === ITEM || p.w)) n++;
+    }
+    return n;
+  }
   startLevel(cfg) {
     this.tweens.killAll();
     this.time.removeAllEvents();
-    this.sprites.flat().forEach((s) => s && s.destroy());
+    for (const S of this.sections || [{ sprites: this.sprites, floorS: this.floorS || [], fogS: this.fogS || {} }]) {
+      S.sprites.flat().forEach((x) => x && x.destroy());
+      (S.floorS || []).forEach((x) => x.destroy());
+      Object.values(S.fogS || {}).forEach((x) => x.destroy());
+    }
     this.fx.clear();
     this.cfg = cfg;
     this.set = cfg.set;
-    this.lv = cfg.lv;
+    const base = cfg.lv;
     for (let t = 0; t < 6; t++) this.makeTex(this.set, t, null);
     this.state = { moves: cfg.moves, goals: cfg.goals };
     this.rand = Math.random;
-    for (let tries = 0; tries < 40; tries++) {
-      this.g = newGrid(this.rand, cfg.types);
-      this.floor = setupObstacles(this.g, this.lv, this.rand);
-      if (findMove(this.g)) break;
-    }
-    if (cfg.pre && cfg.pre.length) placeSpecials(this.g, cfg.pre, this.rand);
-    this.fog = setupFog(this.lv, this.rand);
-    if (!findVisibleMove(this.g, this.fog)) reshuffleVisible(this.g, this.fog, this.rand);
-    this.wet = this.lv.water ? flowWater(this.floor, this.lv.water.src).wet : null;
-    this.syncState();
-    this.drawFloor();
-    this.drawFog();
-    this.sprites = [];
-    for (let r = 0; r < ROWS; r++) {
-      this.sprites.push([]);
-      for (let c = 0; c < COLS; c++) {
-        const s = this.makeSprite(r, c, this.g[r][c], r - ROWS - 1);
-        this.sprites[r].push(s);
-        this.tweens.add({ targets: s, y: this.xy(r, c)[1], duration: 380 + r * 40, ease: 'Bounce.easeOut', delay: c * 30 });
+    const specs = base.screens ? base.screens.map((sc) => Object.assign({}, base, { screens: null }, sc)) : [base];
+    const dir = base.dir || 'v';
+    this.sections = specs.map((spec, i) => {
+      let g, floor;
+      for (let tries = 0; tries < 40; tries++) {
+        g = newGrid(this.rand, cfg.types);
+        floor = setupObstacles(g, spec, this.rand);
+        if (findMove(g)) break;
       }
+      if (i === 0 && cfg.pre && cfg.pre.length) placeSpecials(g, cfg.pre, this.rand);
+      const fog = setupFog(spec, this.rand, g);
+      if (!findVisibleMove(g, fog)) reshuffleVisible(g, fog, this.rand);
+      return { spec, g, floor, fog, wet: spec.water ? flowWater(floor, spec.water.src, g).wet : null, sprites: [], floorS: [], fogS: {},
+        ox: dir === 'h' ? i * COLS * CELL : 0, oy: dir === 'v' ? i * ROWS * CELL : 0 };
+    });
+    this.drawBoardBg();
+    this.sections.forEach((S, i) => {
+      this.useSection(i);
+      this.drawFloor();
+      this.drawFog();
+      for (let r = 0; r < ROWS; r++) {
+        this.sprites.push([]);
+        for (let c = 0; c < COLS; c++) {
+          const s = this.makeSprite(r, c, this.g[r][c], i === 0 ? r - ROWS - 1 : undefined);
+          this.sprites[r].push(s);
+          if (i === 0) this.tweens.add({ targets: s, y: this.xy(r, c)[1], duration: 380 + r * 40, ease: 'Bounce.easeOut', delay: c * 30 });
+        }
+      }
+    });
+    // si la forma del tablero dejó menos casillas que las pedidas, el objetivo se ajusta a lo que hay
+    const count = { floor: 0, rock: 0, barrel: 0, fog: 0, wire: 0 };
+    let bottoms = 0;
+    for (const S of this.sections) for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const p = S.g[r][c];
+      if (S.floor[r][c] > 0) count.floor += S.floor[r][c];
+      if (S.fog[r][c] > 0) count.fog++;
+      if (p && p.t === ROCK) { if (p.k === 'barril') count.barrel++; else count.rock++; }
+      if (p && p.w) count.wire++;
+      if (r === ROWS - 1 && !isVoid(S.g, r, c)) bottoms++;
     }
+    for (const gl of this.state.goals) {
+      if (count[gl.t] !== undefined) gl.n = Math.min(gl.n, count[gl.t]);
+      if (gl.t === 'water') gl.n = Math.min(gl.n, bottoms);
+    }
+    this.useSection(0);
+    this.syncState();
+    const cam = this.cameras.main;
+    cam.setZoom(1); cam.setScroll(0, 0);
+    if (cfg.onSection) cfg.onSection(0, this.sections.length);
     this.busy = true; this.ended = false; this.selected = null; this.down = null; this.movesUsed = 0;
     this.tool = null; this.gloveFirst = null;
     this.hideHand();
-    this.time.delayedCall(950, () => { this.busy = false; if (cfg.tutorial) this.showHand(); });
+    if (this.sections.length > 1) {
+      // vista previa: se ve el tablero entero y después la cámara baja a la primera pantalla
+      const n = this.sections.length, W = COLS * CELL, H = ROWS * CELL, last = this.sections[n - 1];
+      const tw = last.ox + W, th = last.oy + H;
+      cam.setZoom(1 / n); cam.centerOn(tw / 2, th / 2);
+      toast(`Este nivel tiene ${n} pantallas`);
+      this.time.delayedCall(2000, () => { cam.zoomTo(1, 800, 'Sine.easeInOut'); cam.pan(W / 2, H / 2, 800, 'Sine.easeInOut'); });
+      this.time.delayedCall(2900, () => { cam.setZoom(1); cam.setScroll(0, 0); this.busy = false; });
+    } else this.time.delayedCall(950, () => { this.busy = false; if (cfg.tutorial) this.showHand(); });
     this.drawSel();
     cfg.onUpdate(this.state);
     this.armHint();
@@ -2484,7 +2754,7 @@ class BoardScene extends Phaser.Scene {
   onDown(p) {
     if (this.busy || this.ended || !this.g) return;
     const cell = this.cellAt(p);
-    if (!cell) return;
+    if (!cell || isVoid(this.g, cell[0], cell[1])) return;
     this.down = { cell, x: p.x, y: p.y, moved: false };
   }
   onMove(p) {
@@ -2527,7 +2797,7 @@ class BoardScene extends Phaser.Scene {
     if (!cell) return;
     const [r, c] = cell;
     this.sel.lineStyle(6, 0xf2b632, 1);
-    this.sel.strokeRoundedRect(c * CELL + 4, r * CELL + 4, CELL - 8, CELL - 8, 14);
+    this.sel.strokeRoundedRect(this.ox + c * CELL + 4, this.oy + r * CELL + 4, CELL - 8, CELL - 8, 14);
   }
   armHint() {
     if (this.hintTimer) this.hintTimer.remove();
@@ -2682,6 +2952,7 @@ class BoardScene extends Phaser.Scene {
     }
     this.moved = false; this.weedBroken = false;
     won = this.state.goals.every((g) => g.got >= g.n);
+    if (!won && this.state.moves > 0 && this.sections && this.sec < this.sections.length - 1 && this.sectionLeft(this.sections[this.sec]) === 0) await this.nextSection();
     if (won) {
       this.ended = true; this.busy = false;
       const left = this.state.moves;
@@ -2702,6 +2973,16 @@ class BoardScene extends Phaser.Scene {
     this.armHint();
   }
 
+  async nextSection() {
+    const i = this.sec + 1, S = this.sections[i], cam = this.cameras.main;
+    toast(`¡Pantalla ${i + 1} de ${this.sections.length}!`);
+    Sound.whoosh();
+    await new Promise((res) => { cam.pan(S.ox + COLS * CELL / 2, S.oy + ROWS * CELL / 2, 900, 'Sine.easeInOut', false, (c, p) => { if (p === 1) res(); }); });
+    cam.setScroll(S.ox, S.oy);
+    this.useSection(i);
+    if (this.cfg.onSection) this.cfg.onSection(i, this.sections.length);
+    this.syncState(); this.cfg.onUpdate(this.state);
+  }
   // Siempre tiene que quedar una jugada que se vea. Si la niebla las tapa todas, se mezclan las fichas visibles;
   // si aun así no hay, se despeja la niebla de una jugada. Si la maleza dejó el tablero trabado, se arranca una.
   async ensureMove() {
@@ -2756,14 +3037,16 @@ class BoardScene extends Phaser.Scene {
     this.rushing = false;
   }
 
+  // Cada barrido dibuja su propia franja y se borra solo, aunque llegue tarde (por ejemplo, el zonda que trae el cóndor)
   blast(t) {
-    const g = this.fx, W = COLS * CELL, H = ROWS * CELL;
+    const g = this.add.graphics().setDepth(6).setPosition(this.ox, this.oy), W = COLS * CELL, H = ROWS * CELL;
+    this.tweens.add({ targets: g, alpha: { from: 1, to: 0 }, duration: 460, delay: 60, onComplete: () => g.destroy() });
     const row = (r) => { if (r >= 0 && r < ROWS) { g.fillStyle(0xfff3c8, 0.8); g.fillRoundedRect(0, r * CELL + CELL * 0.28, W, CELL * 0.44, 14); } };
     const col = (c) => { if (c >= 0 && c < COLS) { g.fillStyle(0xfff3c8, 0.8); g.fillRoundedRect(c * CELL + CELL * 0.28, 0, CELL * 0.44, H, 14); } };
-    const [x, y] = this.xy(t.r, t.c);
+    const [wx, wy] = this.xy(t.r, t.c), x = wx - this.ox, y = wy - this.oy;
     const big = FX.on && this.bigFx > 0;
     if (big && t.s !== 'b') this.bigFx--;
-    const wind = (v) => (big ? FX.gust(t.r, t.c, v) : this.windFly(x, y, v));
+    const wind = (v) => (big ? FX.gust(t.r, t.c, v) : this.windFly(wx, wy, v));
     if (t.s === 'h') { row(t.r); wind(0); }
     else if (t.s === 'v') { col(t.c); wind(1); }
     else if (t.s === 'x') { row(t.r); col(t.c); wind(0); wind(1); }
@@ -2780,7 +3063,7 @@ class BoardScene extends Phaser.Scene {
     const W = COLS * CELL, H = ROWS * CELL;
     for (const dir of [-1, 1]) {
       const s = this.add.image(x, y, 'sp_h').setDisplaySize(CELL * 1.1, CELL * 1.1).setDepth(7).setAngle(vertical ? 90 : 0);
-      const to = vertical ? { y: dir < 0 ? -CELL : H + CELL } : { x: dir < 0 ? -CELL : W + CELL };
+      const to = vertical ? { y: this.oy + (dir < 0 ? -CELL : H + CELL) } : { x: this.ox + (dir < 0 ? -CELL : W + CELL) };
       this.tweens.add({ targets: s, ...to, duration: 380, ease: 'Quad.easeIn', onComplete: () => s.destroy() });
     }
   }
@@ -2936,7 +3219,7 @@ class BoardScene extends Phaser.Scene {
     const trig = res.triggered.map((t) => t.s);
     if (trig.some((s) => ['o', 'o2', 'xo', 'all'].includes(s))) Sound.boom();
     if (trig.some((s) => ['h', 'v', 'x', 'xo'].includes(s))) Sound.wind();
-    if (res.flights.length) Sound.whoosh();
+    if (res.flights.length || trig.some((x) => x === 'c' || x === 'c3')) Sound.condor();
     if (res.beams.length || trig.includes('all')) Sound.bomb();
     if (res.created.length) Sound.special();
     if (res.converted.length) {
@@ -3027,7 +3310,7 @@ class BoardScene extends Phaser.Scene {
 
   async redraw() {
     this.sprites.flat().forEach((s) => s && s.destroy());
-    this.sprites = [];
+    this.sprites.length = 0;
     for (let r = 0; r < ROWS; r++) {
       this.sprites.push([]);
       for (let c = 0; c < COLS; c++) { const s = this.makeSprite(r, c, this.g[r][c]); s.setScale(0); this.sprites[r].push(s); this.tweens.add({ targets: s, scale: s.base, duration: 260, delay: (r + c) * 15 }); }
