@@ -259,6 +259,11 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .pill{display:inline-flex;align-items:center;gap:6px;background:rgba(30,20,14,.78);border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 6px;color:var(--cream);font:700 15px var(--body);min-height:40px;box-sizing:border-box;font-variant-numeric:tabular-nums}
 button.pill{appearance:none;cursor:pointer}
 .pill img{width:30px;height:30px;object-fit:contain}
+.game-coins{min-height:36px;padding:3px 10px 3px 4px;font-size:15px}
+.game-coins img{width:26px;height:26px}
+.snd-ico{min-width:40px;font-size:18px!important;padding:6px 8px!important}
+.pill.coins.bump{animation:coinbump .45s ease-out}
+@keyframes coinbump{40%{transform:scale(1.18);box-shadow:0 0 14px rgba(242,182,50,.8)}}
 .pill .lives-timer{font-size:12px;font-weight:600;color:var(--cream-dim);min-width:3.2em}
 .pill .plus{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--ok);color:#10301c;font-weight:800;font-size:15px;line-height:1}
 .pill.daily{background:linear-gradient(#7a4a1e,#5a3312);border-color:rgba(242,182,50,.6);animation:bob 1.6s ease-in-out infinite}
@@ -375,7 +380,8 @@ button.pill{appearance:none;cursor:pointer}
     <div class="topbar">
       <button class="back" id="btn-back" type="button">← Mapa</button>
       <div class="ch-title" id="g-title"></div>
-      <button class="snd" type="button" aria-pressed="true">Sonido: sí</button>
+      <div class="pill coins game-coins" title="Monedas"><img src="img/ui_moneda.png" alt="Monedas"><b class="coins-count">0</b></div>
+      <button class="snd snd-ico" type="button" aria-pressed="true" aria-label="Sonido">🔊</button>
     </div>
     <div class="hud">
       <div class="moves"><b id="g-moves">0</b><span>Jugadas</span></div>
@@ -1352,6 +1358,9 @@ const Sound = (() => {
     lose() { if (!ok()) return; const t = ctx.currentTime; tone(392, t, 0.7, 'triangle', 0.09, 180); },
     chime() { if (!ok()) return; const t = ctx.currentTime; [[88, 0], [91, 0.12], [96, 0.24]].forEach(([m, d]) => { tone(mf(m), t + d, 1.4, 'sine', 0.08); tone(mf(m) * 2.76, t + d, 0.5, 'sine', 0.02); }); },
     tick() { if (!ok()) return; tone(1100, ctx.currentTime, 0.04, 'sine', 0.04); },
+    water() { if (!ok()) return; const t = ctx.currentTime; noise(t, 0.5, 600, 2400, 0.16); [84, 88, 91].forEach((m, i) => tone(mf(m), t + i * 0.07, 0.25, 'sine', 0.04)); },
+    grow() { if (!ok()) return; const t = ctx.currentTime; tone(180, t, 0.25, 'triangle', 0.06, 260); noise(t, 0.2, 300, 900, 0.12); },
+    snip() { if (!ok()) return; const t = ctx.currentTime; tone(1800, t, 0.06, 'square', 0.04, 900); noise(t, 0.12, 5000, 1500, 0.2); pluck(88, t + 0.02, 0.35); },
     music(mode) {
       musicMode = mode;
       if (!ctx) return;
@@ -1457,7 +1466,7 @@ const Sound = (() => {
   return api;
 })();
 document.addEventListener('visibilitychange', () => Sound.suspend(document.hidden));
-function syncSoundButtons() { document.querySelectorAll('.snd').forEach((b) => { b.setAttribute('aria-pressed', String(!Sound.muted)); b.textContent = Sound.muted ? 'Sonido: no' : 'Sonido: sí'; }); }
+function syncSoundButtons() { document.querySelectorAll('.snd').forEach((b) => { b.setAttribute('aria-pressed', String(!Sound.muted)); b.textContent = b.classList.contains('snd-ico') ? (Sound.muted ? '🔇' : '🔊') : Sound.muted ? 'Sonido: no' : 'Sonido: sí'; }); }
 
 /* ===== Capítulos ===== */
 const P = {
@@ -1679,7 +1688,10 @@ function spend(price) {
   save.coins -= price; persist(); refreshStats(); Sound.coin();
   return true;
 }
-function addCoins(n) { save.coins += n; persist(); refreshStats(); }
+function addCoins(n) {
+  save.coins += n; persist(); refreshStats();
+  document.querySelectorAll('.pill.coins').forEach((el) => { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); });
+}
 function refreshStats() {
   syncLives();
   document.querySelectorAll('.coins-count').forEach((e) => { e.textContent = save.coins; });
@@ -2600,6 +2612,10 @@ class BoardScene extends Phaser.Scene {
       this.fogS[K(r, c)] = s;
     }
   }
+  shakeFog(cell) {
+    const s = this.fogS && this.fogS[K(cell[0], cell[1])];
+    if (s) this.tweens.add({ targets: s, scale: s.base * 1.08, duration: 70, yoyo: true, repeat: 1 });
+  }
   clearFog(k, delay) {
     const s = this.fogS[k];
     if (!s) return;
@@ -2778,7 +2794,7 @@ class BoardScene extends Phaser.Scene {
     if (this.tool === 'pala') { if (this.g[cell[0]][cell[1]].t === ITEM) { shakeSprite(this, cell); return; } this.applyTool([cell]); return; }
     if (this.tool === 'tijera') { this.applyTool(Array.from({ length: COLS }, (_, i) => [cell[0], i])); return; }
     if (this.tool === 'guante') {
-      if (!movable(this.g[cell[0]][cell[1]])) { shakeSprite(this, cell); return; }
+      if (!movable(this.g[cell[0]][cell[1]]) || this.fogged(cell)) { shakeSprite(this, cell); this.shakeFog(cell); return; }
       if (adj(this.gloveFirst, cell)) { this.applyGlove(this.gloveFirst, cell); return; }
       this.gloveFirst = cell; Sound.tick(); this.drawSel(); return;
     }
@@ -2787,6 +2803,7 @@ class BoardScene extends Phaser.Scene {
       return;
     }
     if (this.g[cell[0]][cell[1]].s) { this.selected = null; this.drawSel(); this.tapSpecial(cell); return; }
+    if (this.fogged(cell)) { Sound.bad(); this.shakeFog(cell); this.selected = null; this.drawSel(); return; }
     this.selected = this.selected && this.selected[0] === cell[0] && this.selected[1] === cell[1] ? null : cell;
     if (this.selected) Sound.tick();
     this.drawSel();
@@ -2853,8 +2870,10 @@ class BoardScene extends Phaser.Scene {
     if (this.handCells) { this.handCells.forEach(([r, c]) => { const s = this.sprites[r] && this.sprites[r][c]; if (s) { this.tweens.killTweensOf(s); s.setScale(s.base); } }); this.handCells = null; }
   }
 
+  fogged(cell) { return !!(this.fog && this.fog[cell[0]] && this.fog[cell[0]][cell[1]]); }
   async trySwap(a, b) {
     if (this.busy || this.ended) return;
+    if (this.fogged(a) || this.fogged(b)) { Sound.bad(); shakeSprite(this, this.fogged(a) ? a : b); this.shakeFog(this.fogged(a) ? a : b); return; }
     if (!movable(this.g[a[0]][a[1]]) || !movable(this.g[b[0]][b[1]])) { Sound.bad(); shakeSprite(this, movable(this.g[a[0]][a[1]]) ? b : a); return; }
     this.busy = true;
     if (this.hintTimer) this.hintTimer.remove();
@@ -2878,6 +2897,7 @@ class BoardScene extends Phaser.Scene {
 
   async tapSpecial(cell) {
     if (this.busy || this.ended) return;
+    if (this.fogged(cell)) { Sound.bad(); this.shakeFog(cell); return; }
     this.busy = true;
     if (this.hintTimer) this.hintTimer.remove();
     this.useMove();
@@ -2913,6 +2933,9 @@ class BoardScene extends Phaser.Scene {
   }
 
   async cascade(res, swapPos) {
+    try { await this.cascadeInner(res, swapPos); } catch (e) { console.error(e); }
+  }
+  async cascadeInner(res, swapPos) {
     let combo = 0, first = true;
     while (true) {
       if (!res) res = resolveStep(this.g, first ? swapPos : null, this.ctx());
@@ -2935,6 +2958,9 @@ class BoardScene extends Phaser.Scene {
   }
 
   async afterMove() {
+    try { await this.afterMoveInner(); } catch (e) { console.error(e); this.busy = false; this.armHint(); }
+  }
+  async afterMoveInner() {
     let won = this.state.goals.every((g) => g.got >= g.n);
     if (!won && this.moved && this.lv.weeds && !this.weedBroken && this.state.moves > 0) {
       const cell = growWeed(this.g, this.rand);
